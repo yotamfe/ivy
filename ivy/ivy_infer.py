@@ -127,21 +127,29 @@ def are_frames_converged(frame1, frame2):
 
     return True
 
-def prove_goal(frames, current_bound, current_bound_counterexample):
+# TODO: rename current_bound to current_frame?
+def prove_goal(frames, current_bound, current_bound_counterexample, check_transformability_to_state):
     if current_bound == 0:
         return False
     
     previous_bound = current_bound - 1
-    previous_bound_counterexample = None
     
-    # TODO: get the right transformer...
-    while False: # have a counterexample in the previous frame that reaches current_counterexample
-        previous_bound_counterexample = None
-        prove_goal(previous_bound, previous_bound_counterexample)
+    while True:
+        # TODO: should also pass the predicate summary we are refining
+        previous_bound_counterexample = check_transformability_to_state(frames[previous_bound].get_summaries_by_symbol_dict(),
+                                                                        current_bound_counterexample)
+        if previous_bound_counterexample is None:
+            break
+        
+        successfully_blocked = prove_goal(previous_bound, previous_bound_counterexample, check_transformability_to_state)
+        if not successfully_blocked:
+            return False
         
     for i in xrange(1, current_bound):
-        strengthening_summary = None # from previous_bound_counterexample
+        strengthening_summary = None # from current_bound_counterexample
         frames[i].strengthen(strengthening_summary)
+        
+    return True
         
 def check_pdr_convergence(frames, current_bound):
     for i in xrange(0, current_bound):
@@ -149,33 +157,41 @@ def check_pdr_convergence(frames, current_bound):
             return frames[i].get_summaries_by_symbol_dict()
     return None
 
+def backward_refine_frames_or_counterexample(frames, new_bound, check_summary_safety, check_transformability_to_state):
+    while True:
+        new_frame_summaries = frames[new_bound].get_summaries_by_symbol_dict()
+        
+        counterexample_to_safety = check_summary_safety(new_frame_summaries)
+        if counterexample_to_safety is None:
+            return True
+        
+        successfully_blocked = prove_goal(frames, new_bound, counterexample_to_safety, check_transformability_to_state)
+        if not successfully_blocked:
+            # TODO: collect counter-trace
+            return False
+
 def pdr(initial_frame, check_summary_safety):
     frames = []
     
-    # init
     frames[0] = initial_frame
     current_bound = 0
     
     while True:
-        # unroll
         new_bound = current_bound + 1
         frames[new_bound] = PdrFrame()
-        while True:
-            new_frame_summaries = frames[new_bound].get_summaries_by_symbol_dict()
-            counterexample_to_safety = check_summary_safety(new_frame_summaries)
-            if counterexample_to_safety is None:
-                break
-            
-            successfully_blocked = prove_goal(frames, current_bound, counterexample_to_safety)
-            if not successfully_blocked:
-                # TODO: collect counter-trace
-                return None
-
+        
+        successfully_blocked = backward_refine_frames_or_counterexample(frames, new_bound)
+        if not successfully_blocked:
+            return None
+        
         current_bound = new_bound
         
         safe_summaries = check_pdr_convergence(frames, current_bound)
         if safe_summaries is not None:
             return safe_summaries
+        
+def check_summary_safety_inductive_invariants(summaries_dict):
+    pass
 
 def main():
     ivy.read_params()
