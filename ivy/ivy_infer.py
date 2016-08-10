@@ -16,10 +16,11 @@ import ivy_interp
 import ivy_compiler
 import ivy_isolate
 
-import sys
-from ivy import ivy_logic_utils, ivy_transrel
-
+import ivy_logic_utils
+import ivy_transrel
 import ivy_solver
+
+import sys
 
 diagnose = iu.BooleanParameter("diagnose",False)
 coverage = iu.BooleanParameter("coverage",True)
@@ -61,7 +62,7 @@ def usage():
     print "usage: \n  {} file.ivy".format(sys.argv[0])
     sys.exit(1)
                     
-def infer_safe_summaries():
+def check():
     ivy_isolate.create_isolate(None)
     check_properties()
     ag = ivy_art.AnalysisGraph(initializer=ivy_alpha.alpha)
@@ -191,6 +192,88 @@ def pdr(initial_frame, check_summary_safety, check_transformability_to_violation
         
 def check_summary_safety_inductive_invariants(summaries_dict):
     pass
+
+def check_any_exported_action_transition(prestate_clauses, poststate_clauses):
+    import ivy_ui
+    import ivy_logic as il
+    import logic as lg
+    from ivy_interp import State,EvalContext,reverse,decompose_action_app
+    import ivy_module as im
+    import ivy_logic_utils as ilu
+    import logic_util as lu
+    import ivy_utils as iu
+    import ivy_graph_ui
+    import ivy_actions as ia
+
+    
+    import ivy_transrel
+    from ivy_solver import get_small_model
+    from proof import ProofGoal
+    from ivy_logic_utils import Clauses, and_clauses, dual_clauses
+    from random import randrange
+    from ivy_art import AnalysisGraph
+    from ivy_interp import State
+    
+    #with self.ui_parent.run_context():
+    if True:
+        ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
+        
+        ag = ivy_art.AnalysisGraph()
+
+        pre = State()
+        pre.clauses = and_clauses(*[prestate_clauses])
+
+        action = im.module.actions['ext']
+        with EvalContext(check=False): # don't check safety
+            post = ag.execute(action, pre, None, 'ext')
+        post.clauses = ilu.true_clauses()
+
+        to_test =  [poststate_clauses]
+
+        while len(to_test) > 0:            
+            conj = to_test.pop(0)
+            assert conj.is_universal_first_order()
+            used_names = frozenset(x.name for x in il.sig.symbols.values())
+            def witness(v):
+                c = lg.Const('@' + v.name, v.sort)
+                assert c.name not in used_names
+                return c        
+            
+        
+            clauses = dual_clauses(conj, witness)
+            history = ag.get_history(post)            
+                
+            _get_model_clauses = lambda clauses, final_cond=False: get_small_model(
+                clauses,
+                sorted(il.sig.sorts.values()),
+                [],
+                final_cond = final_cond
+            )
+            
+            #res = ag.bmc(post, clauses, None, None, _get_model_clauses)
+            res = ag.bmc(post, clauses)
+
+            if res is not None:                
+                assert len(res.states) == 2
+                return res.states                
+            else:
+                return None
+
+# return None or a new proof obligation
+def check_transformability_to_violation(summaries_by_symbol, proof_obligation):
+    countertransition = check_any_exported_action_transition(summaries_by_symbol["inv"], proof_obligation)
+    
+    if countertransition is None:
+        print "Valid!"
+        return None
+    
+    print "Not valid!"
+    prestate = countertransition[0]
+    print prestate
+
+def infer_safe_summaries():
+    check_transformability_to_violation({"inv": ivy_logic_utils.true_clauses()}, ivy_logic_utils.false_clauses())
+    check_transformability_to_violation({"inv": ivy_logic_utils.false_clauses()}, ivy_logic_utils.true_clauses())
 
 def main():
     ivy.read_params()
