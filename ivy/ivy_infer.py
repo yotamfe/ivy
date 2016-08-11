@@ -193,9 +193,6 @@ def pdr(initial_summary, check_summary_safety, check_transformability_to_violati
         if fixpoint_summaries is not None:
             assert check_summary_safety(fixpoint_summaries) is None
             return fixpoint_summaries
-        
-def check_summary_safety_inductive_invariants(summaries_dict):
-    pass
 
 def check_any_exported_action_transition(prestate_clauses, poststate_clauses):
     import ivy_ui
@@ -264,6 +261,7 @@ def check_any_exported_action_transition(prestate_clauses, poststate_clauses):
                 return None
             
 def updr_generalize_bad_model(clauses, bad_model):
+    # TODO: perhaps ivy_interp.diagram?
     diagram = ivy_solver.clauses_model_to_diagram(clauses, model=bad_model)
     return diagram
 
@@ -297,8 +295,21 @@ def check_not_error_safety(summaries):
     
     return updr_bad_model_to_proof_obligation(inv_and_bad, bad_inv_model)
 
+def global_initial_state():
+    with im.module.copy():
+        ivy_isolate.create_isolate(None) # ,ext='ext'
+        ag = ivy_art.AnalysisGraph(initializer=ivy_alpha.alpha)
+        with ivy_interp.EvalContext(check=False):
+            assert len(ag.states) == 1
+            # TODO: need the background theory?
+            # state1 = ag.states[0]
+            # initial_state_clauses = ivy_logic_utils.and_clauses(state1.clauses,state1.domain.background_theory(state1.in_scope))
+            initial_state_clauses = ag.states[0].clauses
+            print initial_state_clauses
+            return initial_state_clauses
+
 def infer_safe_summaries():
-    initial_summary = PredicateSummary("inv", ivy_logic_utils.true_clauses())
+    initial_summary = PredicateSummary("inv", global_initial_state())
     res = pdr(initial_summary, check_not_error_safety, check_single_invariant_transformability_to_violation)
     if res is None:
         print "Not safe!"
