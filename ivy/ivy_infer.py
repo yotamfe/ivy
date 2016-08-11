@@ -26,7 +26,7 @@ import logging
 diagnose = iu.BooleanParameter("diagnose",False)
 coverage = iu.BooleanParameter("coverage",True)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__file__)
 
 
 def display_cex(msg,ag):
@@ -153,6 +153,7 @@ def backwards_prove_goal(frames, current_bound, summary_proof_obligation, check_
             return False
         
     for i in xrange(1, current_bound + 1):
+        logger.debug("pdr strenghening frames up to current bound with %s", summary_proof_obligation)
         frames[i].strengthen(summary_proof_obligation)
         
     return True
@@ -198,10 +199,13 @@ def pdr(initial_summary, check_summary_safety, check_transformability_to_violati
         
         fixpoint_summaries = check_pdr_convergence(frames, current_bound)
         if fixpoint_summaries is not None:
+            logger.debug("pdr frames at fixpoint")
             assert check_summary_safety(fixpoint_summaries) is None
             return fixpoint_summaries
+        else:
+            logger.debug("pdr frames not at fixpoint, continue unrolling")
 
-def check_any_exported_action_transition(prestate_clauses, poststate_clauses):
+def check_any_exported_action_transition(prestate_clauses, poststate_obligation):
     import ivy_ui
     import ivy_logic as il
     import logic as lg
@@ -236,7 +240,7 @@ def check_any_exported_action_transition(prestate_clauses, poststate_clauses):
             post = ag.execute(action, pre, None, 'ext')
         post.clauses = ilu.true_clauses()
 
-        to_test =  [poststate_clauses]
+        to_test =  [poststate_obligation]
 
         while len(to_test) > 0:            
             conj = to_test.pop(0)
@@ -267,40 +271,48 @@ def check_any_exported_action_transition(prestate_clauses, poststate_clauses):
             else:
                 return None
             
-def updr_generalize_bad_model(clauses, bad_model):
+def updr_generalize_bad_model(bad_model):
     # TODO: perhaps ivy_interp.diagram?
-    diagram = ivy_solver.clauses_model_to_diagram(clauses, model=bad_model)
+    #diagram = ivy_solver.clauses_model_to_diagram(clauses, model=bad_model)
+    diagram = ivy_solver.clauses_model_to_diagram(ivy_logic_utils.true_clauses(), model=bad_model)
+    #diagram = ivy_solver.clauses_model_to_diagram(None, model=bad_model)
+    logging.debug("calculated diagram of bad state: %s", diagram)
     return diagram
 
-def updr_bad_model_to_proof_obligation(clauses, bad_model):
-    return ivy_logic_utils.dual_clauses(updr_generalize_bad_model(clauses, bad_model))
+def updr_bad_model_to_proof_obligation(bad_model):
+    #return ivy_logic_utils.dual_clauses(updr_generalize_bad_model(clauses, bad_model))
+    return ivy_logic_utils.dual_clauses(updr_generalize_bad_model(bad_model))
 
 # return None or a new proof obligation
 def check_single_invariant_transformability_to_violation(summaries_by_symbol, proof_obligation):
     prestate_summary = summaries_by_symbol["inv"].get_summary()
+    
+    logger.debug("checking if %s in prestate guarantess %s in poststate", prestate_summary, proof_obligation)
+    
     countertransition = check_any_exported_action_transition(prestate_summary, proof_obligation)
     
     if countertransition is None:
+        logger.debug("check single invariant transformability: proof obligation guaranteed by prestate invariant")
         return None
     
     prestate = countertransition[0]
     # TODO: ask Oded about it (correctness, efficiency)
     mod = ivy_solver.get_model_clauses(prestate.clauses)
     assert mod != None
-    return updr_bad_model_to_proof_obligation(prestate_summary, mod)
+    return updr_bad_model_to_proof_obligation(mod)
     
 # Return None if safe or proof obligation otherwise
 def check_not_error_safety(summaries):
     inv_summary = summaries["inv"].get_summary()
-    bad_clauses = ivy_logic_utils.to_clauses('error')
+    #bad_clauses = ivy_logic_utils.to_clauses('error')
+    bad_clauses = ivy_logic_utils.to_clauses('cme(I)')
     
-    inv_and_bad = ivy_transrel.conjoin(inv_summary, bad_clauses)
     
-    bad_inv_model = ivy_solver.get_model_clauses(inv_and_bad)
+    bad_inv_model = ivy_solver.get_model_clauses(ivy_transrel.conjoin(inv_summary, bad_clauses))
     if bad_inv_model is None:
         return None
     
-    return updr_bad_model_to_proof_obligation(inv_and_bad, bad_inv_model)
+    return updr_bad_model_to_proof_obligation(bad_inv_model)
 
 def global_initial_state():
     with im.module.copy():
@@ -312,7 +324,7 @@ def global_initial_state():
             # state1 = ag.states[0]
             # initial_state_clauses = ivy_logic_utils.and_clauses(state1.clauses,state1.domain.background_theory(state1.in_scope))
             initial_state_clauses = ag.states[0].clauses
-            print initial_state_clauses
+            logger.debug("initial state clauses: %s", initial_state_clauses)
             return initial_state_clauses
 
 def infer_safe_summaries():
@@ -321,7 +333,9 @@ def infer_safe_summaries():
     if res is None:
         print "Not safe!"
     else:
-        print "Invariant:", res["inv"].get_summary()
+        invariant = res["inv"].get_summary()
+        print "Invariant:", invariant
+        assert check_any_exported_action_transition(invariant, invariant) is None
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
