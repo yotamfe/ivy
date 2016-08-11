@@ -21,9 +21,12 @@ import ivy_transrel
 import ivy_solver
 
 import sys
+import logging
 
 diagnose = iu.BooleanParameter("diagnose",False)
 coverage = iu.BooleanParameter("coverage",True)
+
+logger = logging.getLogger(__name__)
 
 
 def display_cex(msg,ag):
@@ -129,7 +132,8 @@ def are_frames_converged(frame1, frame2):
     return True
 
 # TODO: rename current_bound to current_frame?
-def prove_goal(frames, current_bound, summary_proof_obligation, check_transformability_to_violation):
+def backwards_prove_goal(frames, current_bound, summary_proof_obligation, check_transformability_to_violation):
+    logger.debug("pdr trying to prove goal %s in frame %d", summary_proof_obligation, current_bound)
     if current_bound == 0:
         return False
     
@@ -140,14 +144,15 @@ def prove_goal(frames, current_bound, summary_proof_obligation, check_transforma
         previous_bound_proof_obligation = check_transformability_to_violation(frames[previous_bound].get_summaries_by_symbol_dict(),
                                                                         summary_proof_obligation)
         if previous_bound_proof_obligation is None:
+            logger.debug("pdr goal at frame %d provable from previous frame", current_bound)
             break
         
-        successfully_blocked = prove_goal(frames, previous_bound, 
+        successfully_blocked = backwards_prove_goal(frames, previous_bound, 
                                           previous_bound_proof_obligation, check_transformability_to_violation)
         if not successfully_blocked:
             return False
         
-    for i in xrange(1, current_bound):
+    for i in xrange(1, current_bound + 1):
         frames[i].strengthen(summary_proof_obligation)
         
     return True
@@ -165,9 +170,10 @@ def backward_refine_frames_or_counterexample(frames, new_bound,
         
         safety_proof_obligation = check_summary_safety(new_frame_summaries)
         if safety_proof_obligation is None:
+            logger.debug("pdr frame %d is safe", new_bound)
             return True
         
-        successfully_blocked = prove_goal(frames, new_bound, safety_proof_obligation, check_transformability_to_violation)
+        successfully_blocked = backwards_prove_goal(frames, new_bound, safety_proof_obligation, check_transformability_to_violation)
         if not successfully_blocked:
             # TODO: collect counter-trace
             return False
@@ -179,6 +185,7 @@ def pdr(initial_summary, check_summary_safety, check_transformability_to_violati
     current_bound = 0
     
     while True:
+        logger.debug("pdr: unroll to %d", current_bound + 1)
         new_bound = current_bound + 1
         frames.insert(new_bound, PdrFrame())
         
@@ -314,9 +321,11 @@ def infer_safe_summaries():
     if res is None:
         print "Not safe!"
     else:
-        print "Invariant: ", res
+        print "Invariant:", res["inv"].get_summary()
 
 def main():
+    logging.basicConfig(level=logging.DEBUG)
+    
     ivy.read_params()
     iu.set_parameters({'mode':'induction'})
     if len(sys.argv) != 2 or not sys.argv[1].endswith('ivy'):
