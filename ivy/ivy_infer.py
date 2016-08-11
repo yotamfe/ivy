@@ -78,7 +78,7 @@ def check():
             
 class PredicateSummary(object):
     def __init__(self, predicate_symbol, summary):
-        self._predicate_symbol
+        self._predicate_symbol = predicate_symbol
         
         self._summary = summary
         
@@ -142,7 +142,8 @@ def prove_goal(frames, current_bound, summary_proof_obligation, check_transforma
         if previous_bound_proof_obligation is None:
             break
         
-        successfully_blocked = prove_goal(previous_bound, previous_bound_proof_obligation, check_transformability_to_violation)
+        successfully_blocked = prove_goal(frames, previous_bound, 
+                                          previous_bound_proof_obligation, check_transformability_to_violation)
         if not successfully_blocked:
             return False
         
@@ -157,15 +158,16 @@ def check_pdr_convergence(frames, current_bound):
             return frames[i].get_summaries_by_symbol_dict()
     return None
 
-def backward_refine_frames_or_counterexample(frames, new_bound, check_summary_safety, check_transformability_to_violation):
+def backward_refine_frames_or_counterexample(frames, new_bound, 
+                                             check_summary_safety, check_transformability_to_violation):
     while True:
         new_frame_summaries = frames[new_bound].get_summaries_by_symbol_dict()
         
-        counterexample_to_safety = check_summary_safety(new_frame_summaries)
-        if counterexample_to_safety is None:
+        safety_proof_obligation = check_summary_safety(new_frame_summaries)
+        if safety_proof_obligation is None:
             return True
         
-        successfully_blocked = prove_goal(frames, new_bound, counterexample_to_safety, check_transformability_to_violation)
+        successfully_blocked = prove_goal(frames, new_bound, safety_proof_obligation, check_transformability_to_violation)
         if not successfully_blocked:
             # TODO: collect counter-trace
             return False
@@ -173,22 +175,24 @@ def backward_refine_frames_or_counterexample(frames, new_bound, check_summary_sa
 def pdr(initial_summary, check_summary_safety, check_transformability_to_violation):
     frames = []
     
-    frames[0] = PdrFrame(initial_summary)
+    frames.insert(0, PdrFrame(initial_summary))
     current_bound = 0
     
     while True:
         new_bound = current_bound + 1
-        frames[new_bound] = PdrFrame()
+        frames.insert(new_bound, PdrFrame())
         
-        successfully_blocked = backward_refine_frames_or_counterexample(frames, new_bound, check_transformability_to_violation)
+        successfully_blocked = backward_refine_frames_or_counterexample(frames, new_bound, 
+                                                                        check_summary_safety, check_transformability_to_violation)
         if not successfully_blocked:
             return None
         
         current_bound = new_bound
         
-        safe_summaries = check_pdr_convergence(frames, current_bound)
-        if safe_summaries is not None:
-            return safe_summaries
+        fixpoint_summaries = check_pdr_convergence(frames, current_bound)
+        if fixpoint_summaries is not None:
+            assert check_summary_safety(fixpoint_summaries) is None
+            return fixpoint_summaries
         
 def check_summary_safety_inductive_invariants(summaries_dict):
     pass
@@ -258,33 +262,48 @@ def check_any_exported_action_transition(prestate_clauses, poststate_clauses):
                 return res.states                
             else:
                 return None
+            
+def updr_generalize_bad_model(clauses, bad_model):
+    diagram = ivy_solver.clauses_model_to_diagram(clauses, model=bad_model)
+    return diagram
+
+def updr_bad_model_to_proof_obligation(clauses, bad_model):
+    return ivy_logic_utils.dual_clauses(updr_generalize_bad_model(clauses, bad_model))
 
 # return None or a new proof obligation
-def check_transformability_to_violation(summaries_by_symbol, proof_obligation):
-    prestate_summary = summaries_by_symbol["inv"]
+def check_single_invariant_transformability_to_violation(summaries_by_symbol, proof_obligation):
+    prestate_summary = summaries_by_symbol["inv"].get_summary()
     countertransition = check_any_exported_action_transition(prestate_summary, proof_obligation)
     
     if countertransition is None:
-        print "Valid!"
         return None
     
-    
-    print "Not valid!"
     prestate = countertransition[0]
     # TODO: ask Oded about it (correctness, efficiency)
     mod = ivy_solver.get_model_clauses(prestate.clauses)
     assert mod != None
-    diagram = ivy_solver.clauses_model_to_diagram(prestate_summary, model=mod)
-    print "Diagram:", diagram
-    #return diagram
+    return updr_bad_model_to_proof_obligation(prestate_summary, mod)
     
-def check_not_error_safety():
-    pass
+# Return None if safe or proof obligation otherwise
+def check_not_error_safety(summaries):
+    inv_summary = summaries["inv"].get_summary()
+    bad_clauses = ivy_logic_utils.to_clauses('error')
+    
+    inv_and_bad = ivy_transrel.conjoin(inv_summary, bad_clauses)
+    
+    bad_inv_model = ivy_solver.get_model_clauses(inv_and_bad)
+    if bad_inv_model is None:
+        return None
+    
+    return updr_bad_model_to_proof_obligation(inv_and_bad, bad_inv_model)
 
 def infer_safe_summaries():
     initial_summary = PredicateSummary("inv", ivy_logic_utils.true_clauses())
-    res = pdr(initial_summary, check_not_error_safety, check_transformability_to_violation)
-    print res
+    res = pdr(initial_summary, check_not_error_safety, check_single_invariant_transformability_to_violation)
+    if res is None:
+        print "Not safe!"
+    else:
+        print "Invariant: ", res
 
 def main():
     ivy.read_params()
@@ -295,8 +314,6 @@ def main():
         with utl.ErrorPrinter():
             ivy.source_file(sys.argv[1],ivy.open_read(sys.argv[1]),create_isolate=False)
             infer_safe_summaries()
-    print "OK"
-
 
 if __name__ == "__main__":
     main()
