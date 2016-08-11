@@ -77,10 +77,10 @@ def check():
             check_conjectures('Consecution','These conjectures are not inductive.',ag,ag.states[-1])
             
 class PredicateSummary(object):
-    def __init__(self, predicate_symbol):
+    def __init__(self, predicate_symbol, summary):
         self._predicate_symbol
         
-        self._summary = ivy_logic_utils.true_clauses()
+        self._summary = summary
         
     def get_summary(self):
         return self._summary
@@ -98,7 +98,7 @@ class PdrFrame(object):
         self._inv_predicate = "inv"
         
         if predicate_summary is None:
-            predicate_summaries_lst = [PredicateSummary(self._inv_predicate)]
+            predicate_summaries_lst = [PredicateSummary(self._inv_predicate, ivy_logic_utils.true_clauses())]
         else:
             predicate_summaries_lst = [predicate_summary]
             
@@ -170,10 +170,10 @@ def backward_refine_frames_or_counterexample(frames, new_bound, check_summary_sa
             # TODO: collect counter-trace
             return False
 
-def pdr(initial_frame, check_summary_safety, check_transformability_to_violation):
+def pdr(initial_summary, check_summary_safety, check_transformability_to_violation):
     frames = []
     
-    frames[0] = initial_frame
+    frames[0] = PdrFrame(initial_summary)
     current_bound = 0
     
     while True:
@@ -261,19 +261,30 @@ def check_any_exported_action_transition(prestate_clauses, poststate_clauses):
 
 # return None or a new proof obligation
 def check_transformability_to_violation(summaries_by_symbol, proof_obligation):
-    countertransition = check_any_exported_action_transition(summaries_by_symbol["inv"], proof_obligation)
+    prestate_summary = summaries_by_symbol["inv"]
+    countertransition = check_any_exported_action_transition(prestate_summary, proof_obligation)
     
     if countertransition is None:
         print "Valid!"
         return None
     
+    
     print "Not valid!"
     prestate = countertransition[0]
-    print prestate
+    # TODO: ask Oded about it (correctness, efficiency)
+    mod = ivy_solver.get_model_clauses(prestate.clauses)
+    assert mod != None
+    diagram = ivy_solver.clauses_model_to_diagram(prestate_summary, model=mod)
+    print "Diagram:", diagram
+    #return diagram
+    
+def check_not_error_safety():
+    pass
 
 def infer_safe_summaries():
-    check_transformability_to_violation({"inv": ivy_logic_utils.true_clauses()}, ivy_logic_utils.false_clauses())
-    check_transformability_to_violation({"inv": ivy_logic_utils.false_clauses()}, ivy_logic_utils.true_clauses())
+    initial_summary = PredicateSummary("inv", ivy_logic_utils.true_clauses())
+    res = pdr(initial_summary, check_not_error_safety, check_transformability_to_violation)
+    print res
 
 def main():
     ivy.read_params()
