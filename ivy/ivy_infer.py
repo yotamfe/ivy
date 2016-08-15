@@ -144,7 +144,7 @@ def backwards_prove_goal(frames, current_bound, summary_proof_obligation, check_
         previous_bound_proof_obligation = check_transformability_to_violation(frames[previous_bound].get_summaries_by_symbol_dict(),
                                                                         summary_proof_obligation)
         if previous_bound_proof_obligation is None:
-            logger.debug("pdr goal at frame %d provable from previous frame", current_bound)
+            logger.debug("pdr goal at frame %d provable from previous frame: %s", current_bound, summary_proof_obligation)
             break
         
         successfully_blocked = backwards_prove_goal(frames, previous_bound, 
@@ -153,8 +153,11 @@ def backwards_prove_goal(frames, current_bound, summary_proof_obligation, check_
             return False
         
     for i in xrange(1, current_bound + 1):
-        logger.debug("pdr strenghening frames up to current bound with %s", summary_proof_obligation)
-        frames[i].strengthen(summary_proof_obligation)
+        # TODO: move to a parameter of the function
+        summary_proof_obligation_generalization = generalize_intransformability(frames[i-1].get_summaries_by_symbol_dict(), 
+                                                                                summary_proof_obligation)
+        logger.debug("pdr strenghening frames up to bound %d with %s", current_bound, summary_proof_obligation_generalization)
+        frames[i].strengthen(summary_proof_obligation_generalization)
         
     return True
         
@@ -174,6 +177,7 @@ def backward_refine_frames_or_counterexample(frames, new_bound,
             logger.debug("pdr frame %d is safe", new_bound)
             return True
         
+        logging.debug("Trying to block %s from frame %d", safety_proof_obligation, new_bound)
         successfully_blocked = backwards_prove_goal(frames, new_bound, safety_proof_obligation, check_transformability_to_violation)
         if not successfully_blocked:
             # TODO: collect counter-trace
@@ -200,7 +204,7 @@ def pdr(initial_summary, check_summary_safety, check_transformability_to_violati
         fixpoint_summaries = check_pdr_convergence(frames, current_bound)
         if fixpoint_summaries is not None:
             logger.debug("pdr frames at fixpoint")
-            assert check_summary_safety(fixpoint_summaries) is None
+            #assert check_summary_safety(fixpoint_summaries) is None
             return fixpoint_summaries
         else:
             logger.debug("pdr frames not at fixpoint, continue unrolling")
@@ -249,7 +253,7 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
             def witness(v):
                 c = lg.Const('@' + v.name, v.sort)
                 assert c.name not in used_names
-                return c        
+                return c
             
         
             clauses = dual_clauses(conj, witness)
@@ -271,23 +275,70 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
             else:
                 return None
             
-def updr_generalize_bad_model(bad_model):
+def generalize_intransformability(previous_summaries, poststate_clauses):
+    import ivy_ui
+    import ivy_logic as il
+    import logic as lg
+    from ivy_interp import State,EvalContext,reverse,decompose_action_app
+    import ivy_module as im
+    import ivy_logic_utils as ilu
+    import logic_util as lu
+    import ivy_utils as iu
+    import ivy_graph_ui
+    import ivy_actions as ia
+ 
+     
+    import ivy_transrel
+    from ivy_solver import get_small_model
+    from proof import ProofGoal
+    from ivy_logic_utils import Clauses, and_clauses, dual_clauses
+    from random import randrange
+    from ivy_art import AnalysisGraph
+    from ivy_interp import State
+    
+    prestate_clauses = previous_summaries["inv"].get_summary()
+ 
+    ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
+         
+    ag = ivy_art.AnalysisGraph()
+ 
+    pre = State()
+    pre.clauses = and_clauses(*[prestate_clauses])
+     
+    action = im.module.actions['ext']
+     
+    post = ivy_logic_utils.dual_clauses(poststate_clauses)
+     
+    axioms = im.module.background_theory()
+    NO_INTERPRETED = None
+    res = ivy_transrel.forward_interpolant(pre.clauses, action.update(ag.domain,pre.in_scope),post,axioms,NO_INTERPRETED)
+    print res
+    assert res != None
+    return res[1]
+            
+def updr_generalize_bad_model(clauses, bad_model):
     # TODO: perhaps ivy_interp.diagram?
     #diagram = ivy_solver.clauses_model_to_diagram(clauses, model=bad_model)
-    diagram = ivy_solver.clauses_model_to_diagram(ivy_logic_utils.true_clauses(), model=bad_model)
+    #diagram = ivy_solver.clauses_model_to_diagram(ivy_logic_utils.true_clauses(), model=bad_model)
     #diagram = ivy_solver.clauses_model_to_diagram(None, model=bad_model)
+    logging.debug("clauses for diagram: %s", clauses)
+    diagram = ivy_solver.clauses_model_to_diagram(clauses)
     logging.debug("calculated diagram of bad state: %s", diagram)
     return diagram
 
-def updr_bad_model_to_proof_obligation(bad_model):
-    #return ivy_logic_utils.dual_clauses(updr_generalize_bad_model(clauses, bad_model))
-    return ivy_logic_utils.dual_clauses(updr_generalize_bad_model(bad_model))
+def updr_bad_model_to_proof_obligation(clauses, core_wrt_clauses, bad_model):
+    
+    block_model_clauses = ivy_logic_utils.dual_clauses(updr_generalize_bad_model(clauses, bad_model))
+#     block_model_generalization = ivy_solver.unsat_core(clauses, core_wrt_clauses)
+#     logging.debug("updr generalized by unsat core to %s", block_model_generalization)
+    return block_model_clauses
+    
 
 # return None or a new proof obligation
 def check_single_invariant_transformability_to_violation(summaries_by_symbol, proof_obligation):
     prestate_summary = summaries_by_symbol["inv"].get_summary()
     
-    logger.debug("checking if %s in prestate guarantess %s in poststate", prestate_summary, proof_obligation)
+    logger.debug("Single invariant: checking if %s in prestate guarantess %s in poststate", prestate_summary, proof_obligation)
     
     countertransition = check_any_exported_action_transition(prestate_summary, proof_obligation)
     
@@ -296,10 +347,9 @@ def check_single_invariant_transformability_to_violation(summaries_by_symbol, pr
         return None
     
     prestate = countertransition[0]
-    # TODO: ask Oded about it (correctness, efficiency)
-    mod = ivy_solver.get_model_clauses(prestate.clauses)
-    assert mod != None
-    return updr_bad_model_to_proof_obligation(mod)
+#     poststate = countertransition[1]
+    return updr_bad_model_to_proof_obligation(prestate.clauses, ivy_logic_utils.dual_clauses(proof_obligation), None)
+    #return updr_bad_model_to_proof_obligation(prestate.clauses, ivy_logic_utils.dual_clauses(poststate.clauses), None)
     
 # Return None if safe or proof obligation otherwise
 def check_not_error_safety(summaries):
@@ -308,11 +358,13 @@ def check_not_error_safety(summaries):
     bad_clauses = ivy_logic_utils.to_clauses('cme(I)')
     
     
-    bad_inv_model = ivy_solver.get_model_clauses(ivy_transrel.conjoin(inv_summary, bad_clauses))
+    inv_but_bad_clauses = ivy_transrel.conjoin(inv_summary, bad_clauses)
+    bad_inv_model = ivy_solver.get_model_clauses(inv_but_bad_clauses)
     if bad_inv_model is None:
         return None
     
-    return updr_bad_model_to_proof_obligation(bad_inv_model)
+    #return updr_bad_model_to_proof_obligation(inv_but_bad_clauses, bad_inv_model)
+    return updr_bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model)
 
 def global_initial_state():
     with im.module.copy():
@@ -326,6 +378,10 @@ def global_initial_state():
             initial_state_clauses = ag.states[0].clauses
             logger.debug("initial state clauses: %s", initial_state_clauses)
             return initial_state_clauses
+        
+def manual_global_initial_state():
+    inital_state_clauses = ivy_logic_utils.to_clauses('~stale(I) & ~cme(I) & ~used_cnt(C) & ~used_itr(I) & ~used_obj(O) & pc1(U) & ~pc2(U) & ~pc3(U) & ~is_uc_field(O,C)')
+    return 
 
 def infer_safe_summaries():
     initial_summary = PredicateSummary("inv", global_initial_state())
