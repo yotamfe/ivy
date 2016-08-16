@@ -30,6 +30,7 @@ logger = logging.getLogger(__file__)
 
 import ivy_infer
 from ivy_infer import ClausesClauses
+import ivy_infer_universal
 
 def display_cex(msg,ag):
     print msg
@@ -62,17 +63,6 @@ def global_initial_state():
             initial_state_clauses = ag.states[0].clauses
             logger.debug("initial state clauses: %s", initial_state_clauses)
             return initial_state_clauses
-
-def updr_generalize_bad_model(clauses_clauses, bad_model):
-    logger.debug("clauses for diagram: %s", clauses_clauses)
-    logger.debug("As a single clauses: %s", clauses_clauses.to_single_clauses())
-    diagram = ivy_solver.clauses_model_to_diagram(clauses_clauses.to_single_clauses(), model=bad_model)
-    logger.debug("calculated diagram of bad state: %s", diagram)
-    return diagram
-
-def updr_bad_model_to_proof_obligation(clauses_clauses, core_wrt_clauses, bad_model):
-    block_model_clauses = ivy_logic_utils.dual_clauses(updr_generalize_bad_model(clauses_clauses, bad_model))
-    return block_model_clauses
 
 def check_any_exported_action_transition(prestate_clauses, poststate_obligation):
     import ivy_ui
@@ -141,7 +131,7 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
             else:
                 return None
    
-class PdrCmeGlobalInvariant(ivy_infer.PdrElements):
+class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
     def initial_summary(self):
         return ivy_infer.PredicateSummary("inv", global_initial_state())
     
@@ -154,7 +144,7 @@ class PdrCmeGlobalInvariant(ivy_infer.PdrElements):
         if bad_inv_model is None:
             return None
        
-        return updr_bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model)
+        return self._bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model)
     
     def check_transformability_to_violation(self, summaries_by_symbol, proof_obligation):
         prestate_summary = summaries_by_symbol["inv"].get_summary()
@@ -168,7 +158,7 @@ class PdrCmeGlobalInvariant(ivy_infer.PdrElements):
             return None
        
         prestate = countertransition[0]
-        return updr_bad_model_to_proof_obligation(ClausesClauses([prestate.clauses]), 
+        return self._bad_model_to_proof_obligation(ClausesClauses([prestate.clauses]), 
                                                   ivy_logic_utils.dual_clauses(proof_obligation), 
                                                   None)
         
