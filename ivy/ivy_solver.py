@@ -663,6 +663,26 @@ def clauses_imply_list(clauses1, clauses2_list):
         s.pop()
     return res
 
+def clauses_list_imply_list(clauses1_list, clauses2_list):
+    print clauses1_list, clauses2_list
+    """True if clauses1 imply clauses2.
+    """
+    s = z3.Solver()
+    for clauses1 in clauses1_list:
+        z1 = clauses_to_z3(clauses1)
+        s.add(z1)
+
+    res = []
+    for clauses2 in clauses2_list:
+        z2 = not_clauses_to_z3(clauses2)
+#    print "z2 = {}".format(z2)
+        s.push()
+        s.add(z2)
+        res.append(s.check() == z3.unsat)
+        s.pop()
+    return res
+
+
 def not_clauses_to_z3(clauses):
     # Separate the definition of skolems
     sdefs,defs = [],[]
