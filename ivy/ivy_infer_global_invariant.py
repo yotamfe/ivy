@@ -3,22 +3,16 @@
 #
 import ivy
 import ivy_interp as itp
-import ivy_actions as act
 import ivy_utils as utl
-import ivy_logic_utils as lut
 import tk_ui as ui
-import ivy_logic as lg
 import ivy_utils as iu
 import ivy_module as im
 import ivy_alpha
 import ivy_art
 import ivy_interp
-import ivy_compiler
 import ivy_isolate
 
 import ivy_logic_utils
-import ivy_transrel
-import ivy_solver
 
 import sys
 import logging
@@ -85,7 +79,6 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
     from ivy_art import AnalysisGraph
     from ivy_interp import State
    
-    #with self.ui_parent.run_context():
     if True:
         ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
        

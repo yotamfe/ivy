@@ -1,26 +1,11 @@
 #
 # Copyright (c) Microsoft Corporation. All Rights Reserved.
 #
-import ivy
-import ivy_interp as itp
-import ivy_actions as act
-import ivy_utils as utl
-import ivy_logic_utils as lut
-import tk_ui as ui
-import ivy_logic as lg
-import ivy_utils as iu
-import ivy_module as im
-import ivy_alpha
-import ivy_art
-import ivy_interp
-import ivy_compiler
-import ivy_isolate
 
 import ivy_logic_utils
 import ivy_transrel
 import ivy_solver
 
-import sys
 import logging
 import abc
 
@@ -47,7 +32,6 @@ class ClausesClauses(object):
         
     def get_model(self):
         import z3
-        import ivy_solver
         
         s = z3.Solver()
         
