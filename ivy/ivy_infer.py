@@ -22,6 +22,7 @@ import ivy_solver
 
 import sys
 import logging
+import abc
 
 logger = logging.getLogger(__file__)
            
@@ -67,17 +68,23 @@ class ClausesClauses(object):
         return str(self._conjuncts_clauses_list)
     
 class PdrElements(object):
+    __metaclass__ = abc.ABCMeta
+    
+    @abc.abstractmethod
     def initial_summary(self):
         pass
     
     # Return None if safe or proof obligation otherwise
+    @abc.abstractmethod
     def check_summary_safety(self, summaries):
         pass
     
     # return None or a new proof obligation
+    @abc.abstractmethod
     def check_transformability_to_violation(self, summaries_by_symbol, proof_obligation):
         pass
     
+    @abc.abstractmethod
     def generalize_intransformability(self, previous_summaries, poststate_clauses):
         pass
            
