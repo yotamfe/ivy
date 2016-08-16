@@ -360,23 +360,15 @@ def generalize_intransformability(previous_summaries, poststate_clauses):
     return res[1]
            
 def updr_generalize_bad_model(clauses_clauses, bad_model):
-    # TODO: perhaps ivy_interp.diagram?
-    #diagram = ivy_solver.clauses_model_to_diagram(clauses, model=bad_model)
-    #diagram = ivy_solver.clauses_model_to_diagram(ivy_logic_utils.true_clauses(), model=bad_model)
-    #diagram = ivy_solver.clauses_model_to_diagram(None, model=bad_model)
     logging.debug("clauses for diagram: %s", clauses_clauses)
     logging.debug("As a single clauses: %s", clauses_clauses.to_single_clauses())
-    diagram = ivy_solver.clauses_model_to_diagram(clauses_clauses.to_single_clauses())
+    diagram = ivy_solver.clauses_model_to_diagram(clauses_clauses.to_single_clauses(), model=bad_model)
     logging.debug("calculated diagram of bad state: %s", diagram)
     return diagram
 
 def updr_bad_model_to_proof_obligation(clauses_clauses, core_wrt_clauses, bad_model):
-   
     block_model_clauses = ivy_logic_utils.dual_clauses(updr_generalize_bad_model(clauses_clauses, bad_model))
-#     block_model_generalization = ivy_solver.unsat_core(clauses_clauses, core_wrt_clauses)
-#     logging.debug("updr generalized by unsat core to %s", block_model_generalization)
     return block_model_clauses
-   
 
 # return None or a new proof obligation
 def check_single_invariant_transformability_to_violation(summaries_by_symbol, proof_obligation):
@@ -391,9 +383,9 @@ def check_single_invariant_transformability_to_violation(summaries_by_symbol, pr
         return None
    
     prestate = countertransition[0]
-#     poststate = countertransition[1]
-    return updr_bad_model_to_proof_obligation(ClausesClauses([prestate.clauses]), ivy_logic_utils.dual_clauses(proof_obligation), None)
-    #return updr_bad_model_to_proof_obligation(prestate.clauses, ivy_logic_utils.dual_clauses(poststate.clauses), None)
+    return updr_bad_model_to_proof_obligation(ClausesClauses([prestate.clauses]), 
+                                              ivy_logic_utils.dual_clauses(proof_obligation), 
+                                              None)
        
 # Return None if safe or proof obligation otherwise
 def check_not_error_safety(summaries):
