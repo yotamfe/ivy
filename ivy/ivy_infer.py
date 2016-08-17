@@ -44,7 +44,8 @@ class ClausesClauses(object):
         
         m = ivy_solver.get_model(s)
         
-        used_symbols = set.union(*[ivy_logic_utils.used_symbols_clauses(clauses1) for clauses1 in self.get_conjuncts_clauses_list()]) 
+        used_symbols = set.union(*[ivy_logic_utils.used_symbols_clauses(clauses1) 
+                                  for clauses1 in self.get_conjuncts_clauses_list()]) 
         
         return ivy_solver.HerbrandModel(s,m,used_symbols)
         
@@ -69,7 +70,7 @@ class PdrElements(object):
         pass
     
     @abc.abstractmethod
-    def generalize_intransformability(self, previous_summaries, poststate_clauses):
+    def generalize_intransformability(self, prestate_summaries, poststate_clauses):
         pass
            
 class PredicateSummary(object):

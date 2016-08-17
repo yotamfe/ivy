@@ -142,7 +142,7 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
     def check_transformability_to_violation(self, summaries_by_symbol, proof_obligation):
         prestate_summary = summaries_by_symbol["inv"].get_summary()
        
-        logger.debug("Single invariant: checking if %s in prestate guarantess %s in poststate", prestate_summary, proof_obligation)
+        logger.debug("Single invariant: checking if %s in prestate guarantees %s in poststate", prestate_summary, proof_obligation)
        
         countertransition = check_any_exported_action_transition(prestate_summary, ClausesClauses([proof_obligation]))
        
@@ -155,7 +155,7 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
                                                   ivy_logic_utils.dual_clauses(proof_obligation), 
                                                   None)
         
-    def generalize_intransformability(self, previous_summaries, poststate_clauses):
+    def generalize_intransformability(self, prestate_summaries, poststate_clauses):
         import ivy_ui
         import ivy_logic as il
         import logic as lg
@@ -176,7 +176,7 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         from ivy_art import AnalysisGraph
         from ivy_interp import State
        
-        prestate_clauses = previous_summaries["inv"].get_summary()
+        prestate_clauses = prestate_summaries["inv"].get_summary()
      
         ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
             
