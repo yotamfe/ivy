@@ -78,6 +78,7 @@ import ivy_logic_utils
 
 import sys
 import logging
+import ivy_infer_universal
 
 diagnose = iu.BooleanParameter("diagnose",False)
 coverage = iu.BooleanParameter("coverage",True)
@@ -92,8 +93,12 @@ class ProcedureSummary(object):
         
         self._update_clauses = ivy_logic_utils.true_clauses()
         
+    # TODO: override strengthen etc.
+        
     def get_updated_vars(self):
-        return None # everything might be changed by the action
+        sig = ivy_module.module.sig
+        all_symbols_updated = [sym[1] for sym in sig.symbols.items()]
+        return all_symbols_updated
     
     def get_update_clauses(self):
         return self._update_clauses
@@ -109,10 +114,17 @@ class SummarizedAction(ivy_actions.Action):
         
         self.name = name
         
+        self._original_action = original_action
+        
         if hasattr(original_action,'formal_params'):
             self.formal_params = original_action.formal_params
         if hasattr(original_action,'formal_returns'):
             self.formal_returns = original_action.formal_returns
+            
+    # Override AST.clone()
+    def clone(self,args):
+        return SummarizedAction(self.name, self._original_action, 
+                                self._procedure_summary)
             
     # Override
     def action_update(self, domain, pvars):
@@ -121,6 +133,8 @@ class SummarizedAction(ivy_actions.Action):
         pre      = self._procedure_summary.get_precondition()
         return (updated, clauses, pre)
     
+# Used for interpreting the semantics of called procedures by their summary
+# Affects ivy_actions.CallAction.get_callee()
 class SummarizedActionsContext(ivy_actions.ActionContext):
     def __init__(self, procedure_summaries):
         super(SummarizedActionsContext, self).__init__()
@@ -136,14 +150,74 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
 def infer_safe_summaries():
     procedure_summaries = {}
     
-    actions_dict = im.module.actions
+    actions_dict = ivy_module.module.actions
     for name, ivy_action in actions_dict.iteritems():
         procedure_summaries[name] = ProcedureSummary()
         
     with SummarizedActionsContext(procedure_summaries):
         for name, ivy_action in actions_dict.iteritems():
+            import ivy_ui
+            import ivy_logic as il
+            import logic as lg
+            from ivy_interp import State,EvalContext,reverse,decompose_action_app
+            import ivy_module as im
+            import ivy_logic_utils as ilu
+            import logic_util as lu
+            import ivy_utils as iu
+            import ivy_graph_ui
+            import ivy_actions as ia
+        
+           
+            import ivy_transrel
+            from ivy_solver import get_small_model
+            from proof import ProofGoal
+            from ivy_logic_utils import Clauses, and_clauses, dual_clauses
+            from random import randrange
+            from ivy_art import AnalysisGraph
+            from ivy_interp import State
+
             #print ivy_action.update(None, None)
+            ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
+       
+            ag = ivy_art.AnalysisGraph()
+    
+            pre = State()
+            pre.clauses = and_clauses(ivy_logic_utils.true_clauses())
+    
+            with EvalContext(check=False): # don't check safety
+                post = ag.execute(ivy_action, pre, None, 'ext')
+                print name, ":", post.clauses
+
+        
+        
+class GUPDRElements(ivy_infer_universal.UnivPdrElements):
+    def __init__(self, actions_dict):
+        super(GUPDRElements, self).__init__()
+        
+        self._actions_dict = actions_dict
+        
+    def initial_summary(self):
+        procedure_summaries = {}
+    
+        for name, ivy_action in self._actions_dict.iteritems():
+            procedure_summaries[name] = ProcedureSummary()
+            
+        return procedure_summaries
+    
+    # Return None if safe or proof obligation otherwise
+    def check_summary_safety(self, summaries):
+        pass
+    
+    # Return None or a new proof obligation
+    def check_transformability_to_violation(self, predicate, summaries_by_symbol, proof_obligation):
+        procedure_name_to_check = predicate
+        procedure_summaries = summaries_by_symbol
+        
+        with SummarizedActionsContext(procedure_summaries):
             pass
+    
+    def generalize_intransformability(self, predicate, prestate_summaries, poststate_clauses):
+        pass
 
         
 def usage():
