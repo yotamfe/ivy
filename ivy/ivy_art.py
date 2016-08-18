@@ -390,6 +390,15 @@ class AnalysisGraph(object):
                     other_art.construct_transitions_from_expressions()
                     return other_art
         return None
+    
+    def decompose_state_partially_repsect_context(self,state):
+        if hasattr(state,'expr') and state.expr != None:
+            other_art = AnalysisGraph(self.domain)
+            res = decompose_action_app(state,state.expr,other_art)
+            if res != None:
+                other_art.construct_transitions_from_expressions()
+                return other_art
+        return None
 
     def make_concrete_trace(self,state,conc):
         # TODO

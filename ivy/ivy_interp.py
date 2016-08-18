@@ -469,7 +469,7 @@ def eval_state(expr):
         return apply_action(expr,expr.rep,v,s)
     return eval_state_atom(expr)
 
-def decompose_action_app(state2,expr):
+def decompose_action_app(state2,expr,art=None):
     assert is_action_app(expr)
     action = eval_action(expr.rep)
     state1 = eval_state(expr.args[0])
@@ -499,7 +499,12 @@ def decompose_action_app(state2,expr):
         states = []
         for i,value in enumerate(path):
 #            print "core: {} ".format(unsat_core(and_clauses(value[1],bg),true_clauses()))
-            state = new_state(value)
+            # Note: Adds the new_state to the ARG if in AC context!
+            if art is not None:
+                with art.context:
+                    state = new_state(value)
+            else:
+                state = new_state(value)
             if i != 0:
                 state.expr = action_app(acts[i-1],states[-1])
                 state.update = upds[i-1]

@@ -132,6 +132,9 @@ class SummarizedAction(ivy_actions.Action):
         if hasattr(original_action,'formal_returns'):
             self.formal_returns = original_action.formal_returns
             
+    def name(self):
+        return self._name
+            
     # Override AST.clone()
     def clone(self,args):
         return SummarizedAction(self._name, self._original_action, 
@@ -157,17 +160,7 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         original_action = ivy_module.find_action(symbol)
         return SummarizedAction(symbol, original_action, 
                                 self._procedure_summaries[symbol])
-        
-def check_decompose(ivy_action):
-    if ivy_action is None:
-        return
-    if type(ivy_action) == ivy_actions.CallAction:
-        name = ivy_action.args[0].rep
-        print "Call action", name
-        print ivy_action.decompose()
-    for arg in ivy_action.args:
-        check_decompose(arg)
-        
+                
 def infer_safe_summaries():
     procedure_summaries = {}
     
@@ -197,7 +190,6 @@ def infer_safe_summaries():
             from ivy_art import AnalysisGraph
             from ivy_interp import State
  
-            #print ivy_action.update(None, None)
             ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
         
             ag = ivy_art.AnalysisGraph()
@@ -207,7 +199,7 @@ def infer_safe_summaries():
             pre.clauses = ivy_logic_utils.to_clauses('~errorush()')
      
             with EvalContext(check=False): # don't check safety
-                post = ag.execute(ivy_action, pre, None, 'ext')
+                post = ag.execute(ivy_action, pre, None, name)
                 print "Po", name, ":", post.clauses 
                  
                 to_test =  [ivy_logic_utils.to_clauses('~errorush()')]
@@ -237,7 +229,8 @@ def infer_safe_summaries():
          
                     if res is not None:               
                         assert len(res.states) == 2
-                        #print ag.decompose_edge(res.states[1])
+                        analysis_graph = ag.decompose_state_partially_repsect_context(res.states[1])
+                        print repr(analysis_graph)
                         assert False
                         return res.states              
                     else:
