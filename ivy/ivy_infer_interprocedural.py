@@ -86,6 +86,7 @@ coverage = iu.BooleanParameter("coverage",True)
 logger = logging.getLogger(__file__)
 
 import ivy_actions
+import ivy_transrel
 
 class ProcedureSummary(object):
     def __init__(self):
@@ -93,11 +94,21 @@ class ProcedureSummary(object):
         
         self._update_clauses = ivy_logic_utils.true_clauses()
         
+#         sig = ivy_module.module.sig
+#         for sym in sig.symbols.items():
+#             if sym[0] == 'errorush':
+#                 errorush_sym = sym[1]
+#                 break
+#         no_error_clauses = ivy_logic_utils.dual_clauses(ivy_logic_utils.Clauses([ivy_transrel.new(errorush_sym)]))
+#         self._update_clauses = no_error_clauses                                                             
+        
     # TODO: override strengthen etc.
         
     def get_updated_vars(self):
         sig = ivy_module.module.sig
         all_symbols_updated = [sym[1] for sym in sig.symbols.items()]
+        # including both constants and relations!
+        
         return all_symbols_updated
     
     def get_update_clauses(self):
@@ -112,7 +123,7 @@ class SummarizedAction(ivy_actions.Action):
         
         self._procedure_summary = procedure_summary
         
-        self.name = name
+        self._name = name
         
         self._original_action = original_action
         
@@ -123,7 +134,7 @@ class SummarizedAction(ivy_actions.Action):
             
     # Override AST.clone()
     def clone(self,args):
-        return SummarizedAction(self.name, self._original_action, 
+        return SummarizedAction(self._name, self._original_action, 
                                 self._procedure_summary)
             
     # Override
@@ -147,6 +158,16 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         return SummarizedAction(symbol, original_action, 
                                 self._procedure_summaries[symbol])
         
+def check_decompose(ivy_action):
+    if ivy_action is None:
+        return
+    if type(ivy_action) == ivy_actions.CallAction:
+        name = ivy_action.args[0].rep
+        print "Call action", name
+        print ivy_action.decompose()
+    for arg in ivy_action.args:
+        check_decompose(arg)
+        
 def infer_safe_summaries():
     procedure_summaries = {}
     
@@ -166,8 +187,8 @@ def infer_safe_summaries():
             import ivy_utils as iu
             import ivy_graph_ui
             import ivy_actions as ia
-        
-           
+         
+            
             import ivy_transrel
             from ivy_solver import get_small_model
             from proof import ProofGoal
@@ -175,18 +196,52 @@ def infer_safe_summaries():
             from random import randrange
             from ivy_art import AnalysisGraph
             from ivy_interp import State
-
+ 
             #print ivy_action.update(None, None)
             ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
-       
+        
             ag = ivy_art.AnalysisGraph()
-    
+     
             pre = State()
-            pre.clauses = and_clauses(ivy_logic_utils.true_clauses())
-    
+            #pre.clauses = and_clauses(ivy_logic_utils.true_clauses())
+            pre.clauses = ivy_logic_utils.to_clauses('~errorush()')
+     
             with EvalContext(check=False): # don't check safety
                 post = ag.execute(ivy_action, pre, None, 'ext')
-                print name, ":", post.clauses
+                print "Po", name, ":", post.clauses 
+                 
+                to_test =  [ivy_logic_utils.to_clauses('~errorush()')]
+ 
+                while len(to_test) > 0:           
+                    conj = to_test.pop(0)
+                    assert conj.is_universal_first_order()
+                    used_names = frozenset(x.name for x in il.sig.symbols.values())
+                    def witness(v):
+                        c = lg.Const('@' + v.name, v.sort)
+                        assert c.name not in used_names
+                        return c
+                    
+                
+                    clauses = dual_clauses(conj, witness)
+                    history = ag.get_history(post)           
+                        
+                    _get_model_clauses = lambda clauses, final_cond=False: get_small_model(
+                        clauses,
+                        sorted(il.sig.sorts.values()),
+                        [],
+                        final_cond = final_cond
+                    )
+                    
+                    #res = ag.bmc(post, clauses, None, None, _get_model_clauses)
+                    res = ag.bmc(post, clauses)
+         
+                    if res is not None:               
+                        assert len(res.states) == 2
+                        #print ag.decompose_edge(res.states[1])
+                        assert False
+                        return res.states              
+                    else:
+                        return None
 
         
         
