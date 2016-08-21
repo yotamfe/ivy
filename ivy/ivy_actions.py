@@ -789,10 +789,6 @@ class CallAction(Action):
         post = (post[0],rename_clauses(post[1],ren),post[2])
         callee = v.clone(v.args) # drop the formals
         res = [(pre,[callee],post)]
-        print "decompose call:"
-        print "pre = {}".format(pre)
-        print "callee = {}".format(callee)
-        print "post = {}".format(post)
         return res
         
 

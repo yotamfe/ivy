@@ -163,28 +163,28 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         
 def subprocedures_states_iter(ag, state_to_decompose):
     analysis_graph = ag.decompose_state_partially_repsect_context(state_to_decompose)
-    #new_states = analysis_graph.states[1:-1]
-    new_states = analysis_graph.states[1:]
-    #new_states = [analysis_graph.states[-1]]
-#     if len(new_states) == 0:
-#         return
-
-    if len(analysis_graph.states) == 2:
-        return []
     
     subprocedures_states = []
     
+    # Note: the first state is the initial state, and it is not associated with any action
     for i in xrange(1, len(analysis_graph.states)):
         state = analysis_graph.states[i]
         if state.expr is None:
             continue
         
         action = ivy_interp.eval_action(state.expr.rep)
-        print type(action)
+        
+        if isinstance(action, ivy_actions.AssignAction) or \
+           isinstance(action, ivy_actions.AssumeAction) or \
+           isinstance(action, ivy_actions.AssertAction) or \
+           isinstance(action, ivy_actions.HavocAction) or \
+           isinstance(action, SummarizedAction):
+            continue
+        
         if isinstance(action, ivy_actions.CallAction):
             previous_state = analysis_graph.states[i-1]
             subprocedures_states.append((action, previous_state, state))
-            
+        
         rec_res = subprocedures_states_iter(ag, state)
         subprocedures_states += rec_res
         
