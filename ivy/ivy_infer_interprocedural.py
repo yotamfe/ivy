@@ -160,6 +160,35 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         original_action = ivy_module.find_action(symbol)
         return SummarizedAction(symbol, original_action, 
                                 self._procedure_summaries[symbol])
+        
+def subprocedures_states_iter(ag, state_to_decompose):
+    analysis_graph = ag.decompose_state_partially_repsect_context(state_to_decompose)
+    #new_states = analysis_graph.states[1:-1]
+    new_states = analysis_graph.states[1:]
+    #new_states = [analysis_graph.states[-1]]
+#     if len(new_states) == 0:
+#         return
+
+    if len(analysis_graph.states) == 2:
+        return []
+    
+    subprocedures_states = []
+    
+    for i in xrange(1, len(analysis_graph.states)):
+        state = analysis_graph.states[i]
+        if state.expr is None:
+            continue
+        
+        action = ivy_interp.eval_action(state.expr.rep)
+        print type(action)
+        if isinstance(action, ivy_actions.CallAction):
+            previous_state = analysis_graph.states[i-1]
+            subprocedures_states.append((action, previous_state, state))
+            
+        rec_res = subprocedures_states_iter(ag, state)
+        subprocedures_states += rec_res
+        
+    return subprocedures_states
                 
 def infer_safe_summaries():
     procedure_summaries = {}
@@ -200,7 +229,7 @@ def infer_safe_summaries():
      
             with EvalContext(check=False): # don't check safety
                 post = ag.execute(ivy_action, pre, None, name)
-                print "Po", name, ":", post.clauses 
+                #print "Po", name, ":", post.clauses 
                  
                 to_test =  [ivy_logic_utils.to_clauses('~errorush()')]
  
@@ -229,8 +258,29 @@ def infer_safe_summaries():
          
                     if res is not None:               
                         assert len(res.states) == 2
-                        analysis_graph = ag.decompose_state_partially_repsect_context(res.states[1])
-                        print repr(analysis_graph)
+                        subprocs_states = subprocedures_states_iter(ag, res.states[1])
+                        for action, prev_state, state in subprocs_states:
+                            print action, prev_state, state
+                        assert False
+                        state_to_expand = res.states[1]
+                        for _ in xrange(0, 3):
+                            analysis_graph = ag.decompose_state_partially_repsect_context(state_to_expand)
+                            state_to_expand = analysis_graph.states[-1]
+                            state = state_to_expand
+                            ag = analysis_graph
+                            print state
+                            print "Num states:", len(analysis_graph.states)
+                            if state.expr is None:
+                                continue
+                            action = ivy_interp.eval_action(state.expr.rep)
+                            print type(action), action
+                        print len(analysis_graph.states), analysis_graph.states
+                        #print res.states
+#                         for state in analysis_graph.states:
+#                             if state.expr is None:
+#                                 continue
+#                             action = ivy_interp.eval_action(state.expr.rep)
+#                             print type(action), action 
                         assert False
                         return res.states              
                     else:
