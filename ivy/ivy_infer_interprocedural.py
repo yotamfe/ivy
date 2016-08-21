@@ -260,29 +260,8 @@ def infer_safe_summaries():
                         assert len(res.states) == 2
                         subprocs_states = subprocedures_states_iter(ag, res.states[1])
                         for action, prev_state, state in subprocs_states:
-                            print action, prev_state, state
-                        assert False
-                        state_to_expand = res.states[1]
-                        for _ in xrange(0, 3):
-                            analysis_graph = ag.decompose_state_partially_repsect_context(state_to_expand)
-                            state_to_expand = analysis_graph.states[-1]
-                            state = state_to_expand
-                            ag = analysis_graph
-                            print state
-                            print "Num states:", len(analysis_graph.states)
-                            if state.expr is None:
-                                continue
-                            action = ivy_interp.eval_action(state.expr.rep)
-                            print type(action), action
-                        print len(analysis_graph.states), analysis_graph.states
-                        #print res.states
-#                         for state in analysis_graph.states:
-#                             if state.expr is None:
-#                                 continue
-#                             action = ivy_interp.eval_action(state.expr.rep)
-#                             print type(action), action 
-                        assert False
-                        return res.states              
+                            print action, prev_state, state, type(state)
+                        assert False              
                     else:
                         return None
 
