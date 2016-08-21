@@ -308,6 +308,9 @@ def conjoin(clauses1,clauses2):
 def constrain_state(upd,fmla):
     return (upd[0],and_clauses(upd[1],formula_to_clauses(fmla)),upd[2])
 
+def hide_clauses(syms, clauses):
+    return exist_quant(syms, clauses)
+
 def hide(syms,update):
     syms = set(syms)
     syms.update(new(s) for s in update[0] if s in syms)

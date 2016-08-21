@@ -88,6 +88,13 @@ logger = logging.getLogger(__file__)
 import ivy_actions
 import ivy_transrel
 
+def get_signature_symbols():
+    sig = ivy_module.module.sig
+    sig_symbols = [sym[1] for sym in sig.symbols.items()]
+    # including both constants and relations!
+    return sig_symbols
+    
+
 class ProcedureSummary(object):
     def __init__(self):
         super(ProcedureSummary, self).__init__()
@@ -105,11 +112,8 @@ class ProcedureSummary(object):
     # TODO: override strengthen etc.
         
     def get_updated_vars(self):
-        sig = ivy_module.module.sig
-        all_symbols_updated = [sym[1] for sym in sig.symbols.items()]
         # including both constants and relations!
-        
-        return all_symbols_updated
+        return get_signature_symbols()
     
     def get_update_clauses(self):
         return self._update_clauses
@@ -189,6 +193,51 @@ def subprocedures_states_iter(ag, state_to_decompose):
         subprocedures_states += rec_res
         
     return subprocedures_states
+
+def clauses_to_new_vocabulary(clauses):
+    """"Type of vocabulary used by actions, see ivy_transrel.state_to_action"""
+#     ivy_transrel.state_to_action((callee_current_summary.get_updated_vars(), 
+#                                         after_state.clauses, 
+#                                         callee_current_summary.get_precondition()))[1]
+    renaming = dict()
+    # Note: not simply iterating over clauses.symbols() because then numerals
+    # also get transformed (new_0), which doesn't make much sense
+    # TODO: also need to transform the formal arguments? probably yes
+    for s in get_signature_symbols():
+        renaming[s] = ivy_transrel.new(s)
+    return ivy_logic_utils.rename_clauses(clauses, renaming)
+
+
+def hide_callers_local_variables(clauses, call_action):
+    callee_action = call_action.get_callee()
+    formals = callee_action.formal_params + callee_action.formal_returns
+    symbols_can_be_modified = get_signature_symbols() + formals
+    
+    unrelated_syms = [s for s in clauses.symbols() 
+                        if s not in symbols_can_be_modified and not s.is_numeral()]
+    return ivy_transrel.hide_clauses(unrelated_syms, clauses)
+
+    # TODO: MUST TEST this with global variables, local variables, and nested calls
+     
+def transition_states_to_summary(call_action, before_state, after_state, 
+                                 procedure_summaries):
+    # TODO: translate formal parameters back before this call
+    # TODO: because get_updated_vars() uses them and not the uniquely renamed ones
+    # TODO: perhaps rename the rest and keep the names of the formal params?...
+    
+#     print call_action, before_state, after_state
+
+    callee = call_action.args[0].rep
+    callee_current_summary = procedure_summaries[callee] 
+    
+    after_clauses_locals_hidden = hide_callers_local_variables(after_state.clauses, call_action)
+    before_clauses_locals_hidden = hide_callers_local_variables(before_state.clauses, call_action)
+    
+    after_clauses_locals_hidden_new_vocab = clauses_to_new_vocabulary(after_clauses_locals_hidden) 
+    
+    return ivy_transrel.conjoin(before_clauses_locals_hidden,
+                                after_clauses_locals_hidden_new_vocab) 
+                                        
                 
 def infer_safe_summaries():
     procedure_summaries = {}
@@ -259,8 +308,10 @@ def infer_safe_summaries():
                     if res is not None:               
                         assert len(res.states) == 2
                         subprocs_states = subprocedures_states_iter(ag, res.states[1])
-                        for action, prev_state, state in subprocs_states:
-                            print action, prev_state, state, type(state)
+                        for call_action, before_state, after_state in subprocs_states:
+                            print transition_states_to_summary(call_action, before_state, after_state, 
+                                                  procedure_summaries)
+
                         assert False              
                     else:
                         return None
