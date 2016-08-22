@@ -267,9 +267,6 @@ def get_cex_two_vocabulary_obligation(ivy_action, proc_name,
         two_vocab_update = get_action_two_vocabulary_clauses(ivy_action, axioms)
         clauses_to_check_sat = ivy_transrel.conjoin(two_vocab_update, 
                                                     ivy_logic_utils.dual_clauses(two_vocab_obligation))
-        
-        clauses_to_check_sat = ivy_transrel.conjoin(clauses_to_check_sat,
-                                                    ivy_logic_utils.to_clauses('~errorush()'))
     
         clauses_cex = ivy_solver.clauses_model_to_clauses(clauses_to_check_sat)
         if clauses_cex is None:
