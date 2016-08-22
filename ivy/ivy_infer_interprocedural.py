@@ -210,6 +210,8 @@ def clauses_to_new_vocabulary(clauses):
     for s in clauses.symbols():
         if s.is_numeral():
             continue
+        if ivy_transrel.is_skolem(s):
+            continue
         renaming[s] = ivy_transrel.new(s)
     return ivy_logic_utils.rename_clauses(clauses, renaming)
 
@@ -263,12 +265,16 @@ def get_cex_two_vocabulary_obligation(ivy_action, proc_name,
     
     with SummarizedActionsContext(procedure_summaries):
         two_vocab_update = get_action_two_vocabulary_clauses(ivy_action, axioms)
-        clauses_to_check_sat = ivy_transrel.conjoin(two_vocab_update, two_vocab_obligation)
+        clauses_to_check_sat = ivy_transrel.conjoin(two_vocab_update, 
+                                                    ivy_logic_utils.dual_clauses(two_vocab_obligation))
         
+        clauses_to_check_sat = ivy_transrel.conjoin(clauses_to_check_sat,
+                                                    ivy_logic_utils.to_clauses('~errorush()'))
+    
         clauses_cex = ivy_solver.clauses_model_to_clauses(clauses_to_check_sat)
         if clauses_cex is None:
             return None
-        
+    
         return clauses_cex
 
 def separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses):
@@ -294,6 +300,9 @@ def generate_summary_obligations_from_cex(procedure_summaries, ag):
         subprocs_states = subprocedures_states_iter(ag, ag.states[1])
         
         for call_action, before_state, after_state in subprocs_states:
+            print "Before clauses", before_state.clauses
+            print "After clauses", after_state.clauses
+            assert False
             transition_summary = transition_states_to_summary(call_action, before_state, after_state, 
                                                               procedure_summaries)
             print transition_summary
@@ -416,14 +425,16 @@ def infer_safe_summaries():
     proof_goal = zzz_new_no_error_clauses()    
     
     name, ivy_action = actions_dict.items()[0]
-    for _ in xrange(0,2):
+    if True:
         new_proof_goal = check_procedure_transition(ivy_action, name, 
                                                 procedure_summaries, 
                                                 proof_goal)
-        procedure_summaries[name].strengthen(new_proof_goal)
-        new_proof_goal = generelize_summary_blocking(procedure_summaries[name].get_update_clauses(),
-                                    proof_goal)
-        procedure_summaries[name].strengthen(new_proof_goal)
+        print new_proof_goal
+        #procedure_summaries[name].strengthen(ivy_logic_utils.to_clauses('~errorush()'))
+#         procedure_summaries[name].strengthen(zzz_new_no_error_clauses())
+#         new_proof_goal = generelize_summary_blocking(procedure_summaries[name].get_update_clauses(),
+#                                     proof_goal)
+#         procedure_summaries[name].strengthen(new_proof_goal)
         
         
 class GUPDRElements(ivy_infer_universal.UnivPdrElements):
