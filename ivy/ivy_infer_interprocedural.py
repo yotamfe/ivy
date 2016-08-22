@@ -171,6 +171,7 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         
 def subprocedures_states_iter(ag, state_to_decompose):
     analysis_graph = ag.decompose_state_partially_repsect_context(state_to_decompose)
+    assert analysis_graph is not None
     
     subprocedures_states = []
     
@@ -267,6 +268,9 @@ def get_cex_two_vocabulary_obligation(ivy_action, proc_name,
         two_vocab_update = get_action_two_vocabulary_clauses(ivy_action, axioms)
         clauses_to_check_sat = ivy_transrel.conjoin(two_vocab_update, 
                                                     ivy_logic_utils.dual_clauses(two_vocab_obligation))
+        
+        clauses_to_check_sat = ivy_transrel.conjoin(clauses_to_check_sat,
+                                                    ivy_logic_utils.to_clauses('~errorush()'))
     
         clauses_cex = ivy_solver.clauses_model_to_clauses(clauses_to_check_sat)
         if clauses_cex is None:
@@ -276,10 +280,17 @@ def get_cex_two_vocabulary_obligation(ivy_action, proc_name,
 
 def separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses):
     updated_syms, _, _ = update_from_action(ivy_action)
-    pre_clauses  = ivy_solver.clauses_model_to_clauses(two_vocab_cex_clauses,
-                                                      lambda s: ivy_transrel.is_new(s) and not s in updated_syms)
-    post_clauses = ivy_solver.clauses_model_to_clauses(two_vocab_cex_clauses,
-                                                      lambda s: not ivy_transrel.is_new(s) and not s in updated_syms)
+
+    hide_in_pre_syms = [s for s in two_vocab_cex_clauses.symbols() 
+                            if ivy_transrel.is_new(s)]
+    hide_in_post_syms   = [s for s in two_vocab_cex_clauses.symbols() 
+                            if not ivy_transrel.is_new(s) and s in updated_syms]
+
+    pre_clauses = ivy_transrel.hide_clauses(hide_in_pre_syms,
+                                             two_vocab_cex_clauses)
+    post_clauses = ivy_transrel.hide_clauses(hide_in_post_syms,
+                                             two_vocab_cex_clauses)
+    
     return (ivy_interp.State(value=ivy_transrel.pure_state(pre_clauses)),
             ivy_interp.State(value=ivy_transrel.pure_state(post_clauses)))
     
