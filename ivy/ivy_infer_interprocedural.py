@@ -214,9 +214,11 @@ def hide_callers_local_variables(clauses, call_action):
     callee_action = call_action.get_callee()
     formals = callee_action.formal_params + callee_action.formal_returns
     symbols_can_be_modified = get_signature_symbols() + formals
+    symbols_can_be_modified_two_vocab = symbols_can_be_modified + \
+                                        [ivy_transrel.new(s) for s in symbols_can_be_modified]
     
     unrelated_syms = [s for s in clauses.symbols() 
-                        if s not in symbols_can_be_modified and not s.is_numeral()]
+                        if s not in symbols_can_be_modified_two_vocab and not s.is_numeral()]
     return ivy_transrel.hide_clauses(unrelated_syms, clauses)
 
     # TODO: MUST TEST this with global variables, local variables, and nested calls
@@ -310,7 +312,12 @@ def infer_safe_summaries():
                         for call_action, before_state, after_state in subprocs_states:
                             transition_summary = transition_states_to_summary(call_action, before_state, after_state, 
                                                                               procedure_summaries)
-                            summary_locals_hidden = hide_callers_local_variables(transition_summary, call_action)
+                            print transition_summary
+                            import ivy_solver
+                            # TODO: use utils from ivy_infer_universal
+                            universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(transition_summary, model=None))
+                            # TODO: skolemizes new vocabulary symbols mistakenly!
+                            summary_locals_hidden = hide_callers_local_variables(universal_transition_summary, call_action)
                             print summary_locals_hidden
 
                         assert False              
