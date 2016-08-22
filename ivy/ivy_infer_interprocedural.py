@@ -254,7 +254,8 @@ def transition_states_to_summary(call_action, before_state, after_state,
                                 after_clauses_locals_hidden_new_vocab)
     
 def update_from_action(ivy_action):
-    return ivy_action.update(im.module, {})
+    # TODO: int_update? update? rename our function name?
+    return ivy_action.int_update(im.module, {})
     
 def get_action_two_vocabulary_clauses(ivy_action, axioms):
     # based on ivy_transrel.forward_image_map, without existential quantification
@@ -263,9 +264,12 @@ def get_action_two_vocabulary_clauses(ivy_action, axioms):
     pre = pre_ax
     # no existential quantification on pre clauses, just convert to new
     clauses_new_vocab = ivy_logic_utils.rename_clauses(clauses, 
-                                                       dict((ivy_transrel.new(x) ,x) 
-                                                                for x in updated)) 
-    return ivy_transrel.conjoin(pre, clauses_new_vocab)
+                                                        dict((ivy_transrel.new(x), x) 
+                                                                 for x in clauses.symbols() 
+                                                                 if x not in updated))
+    res = ivy_transrel.conjoin(pre, clauses_new_vocab)
+    logger.debug("two vocab for procedure: %s", res)
+    return res
     
 def get_cex_two_vocabulary_obligation(ivy_action, proc_name, 
                                     procedure_summaries, two_vocab_obligation):
@@ -304,6 +308,7 @@ def separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses):
     
 def ag_from_two_vocab_cex(action_name, ivy_action, two_vocab_cex_clauses):
     pre_state, post_state = separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses)
+    
     ag = ivy_art.AnalysisGraph()
     # based on AnalysisGraph.execute
     ag.add(pre_state)
