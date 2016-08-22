@@ -316,7 +316,6 @@ def infer_safe_summaries():
                             import ivy_solver
                             # TODO: use utils from ivy_infer_universal
                             universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(transition_summary, model=None))
-                            # TODO: skolemizes new vocabulary symbols mistakenly!
                             summary_locals_hidden = hide_callers_local_variables(universal_transition_summary, call_action)
                             print summary_locals_hidden
 
