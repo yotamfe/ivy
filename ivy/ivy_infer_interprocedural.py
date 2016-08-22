@@ -282,11 +282,13 @@ def get_cex_two_vocabulary_obligation(ivy_action, proc_name,
         
         clauses_to_check_sat = ivy_transrel.conjoin(clauses_to_check_sat,
                                                     ivy_logic_utils.to_clauses('~errorush()'))
-    
-        clauses_cex = ivy_solver.clauses_model_to_clauses(clauses_to_check_sat)
-        if clauses_cex is None:
+        
+        cex_model = ivy_solver.get_model_clauses(clauses_to_check_sat)
+        if cex_model is None:
             return None
     
+        clauses_cex = ivy_solver.clauses_model_to_clauses(clauses_to_check_sat,
+                                                          model=cex_model)    
         return clauses_cex
 
 def separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses):
@@ -343,88 +345,6 @@ def check_procedure_transition(ivy_action, proc_name,
 
     ag = ag_from_two_vocab_cex(proc_name, ivy_action, two_vocab_cex)
     return generate_summary_obligations_from_cex(procedure_summaries, ag)
-    
-    
-# def check_procedure_transition(ivy_action, proc_name, procedure_summaries, poststate_obligation):
-#     with SummarizedActionsContext(procedure_summaries):
-#         import ivy_ui
-#         import ivy_logic as il
-#         import logic as lg
-#         from ivy_interp import State,EvalContext,reverse,decompose_action_app
-#         import ivy_module as im
-#         import ivy_logic_utils as ilu
-#         import logic_util as lu
-#         import ivy_utils as iu
-#         import ivy_graph_ui
-#         import ivy_actions as ia
-#      
-#         
-#         import ivy_transrel
-#         from ivy_solver import get_small_model
-#         from proof import ProofGoal
-#         from ivy_logic_utils import Clauses, and_clauses, dual_clauses
-#         from random import randrange
-#         from ivy_art import AnalysisGraph
-#         from ivy_interp import State
-#     
-#         ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
-#     
-#         ag = ivy_art.AnalysisGraph()
-#     
-#         pre = State()
-#         #pre.clauses = and_clauses(ivy_logic_utils.true_clauses())
-#         #pre.clauses = ivy_logic_utils.to_clauses('~errorush()')
-#         #pre.clauses = ivy_logic_utils.true_clauses()
-#         pre.clauses = poststate_obligation
-#     
-#         with EvalContext(check=False): # don't check safety
-#             post = ag.execute(ivy_action, pre, None, proc_name)
-#             #print "Po", name, ":", post.clauses 
-#              
-#             to_test =  [#poststate_obligation, # TODO: this is not just about the poststate
-#                         procedure_summaries[proc_name].get_update_clauses()
-#                         ]
-#     
-#             while len(to_test) > 0:           
-#                 conj = to_test.pop(0)
-#                 assert conj.is_universal_first_order()
-#                 used_names = frozenset(x.name for x in il.sig.symbols.values())
-#                 def witness(v):
-#                     c = lg.Const('@' + v.name, v.sort)
-#                     assert c.name not in used_names
-#                     return c
-#                 
-#             
-#                 clauses = dual_clauses(conj, witness)
-#                 history = ag.get_history(post)           
-#                     
-#                 _get_model_clauses = lambda clauses, final_cond=False: get_small_model(
-#                     clauses,
-#                     sorted(il.sig.sorts.values()),
-#                     [],
-#                     final_cond = final_cond
-#                 )
-#                 
-#                 #res = ag.bmc(post, clauses, None, None, _get_model_clauses)
-#                 res = ag.bmc(post, clauses)
-#                 
-#                 # forward_image_map, without exist_quant_map
-#                 # model_clauses_to_model (called from history.satsify), construct state in the same way
-#      
-#                 if res is not None:               
-#                     assert len(res.states) == 2
-#                     subprocs_states = subprocedures_states_iter(ag, res.states[1])
-#                     for call_action, before_state, after_state in subprocs_states:
-#                         transition_summary = transition_states_to_summary(call_action, before_state, after_state, 
-#                                                                           procedure_summaries)
-#                         print transition_summary
-#                         # TODO: use utils from ivy_infer_universal
-#                         universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(transition_summary, model=None))
-#                         summary_locals_hidden = hide_callers_local_variables(universal_transition_summary, call_action)
-#                         print summary_locals_hidden
-#                         return summary_locals_hidden
-#                 else:
-#                     return None
 
 def generelize_summary_blocking(proc_summary, proof_obligation):
     axioms = im.module.background_theory()
