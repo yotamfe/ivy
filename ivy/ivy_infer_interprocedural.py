@@ -205,9 +205,6 @@ def clauses_to_new_vocabulary(clauses):
 #                                         after_state.clauses, 
 #                                         callee_current_summary.get_precondition()))[1]
     renaming = dict()
-    # Note: not simply iterating over clauses.symbols() because then numerals
-    # also get transformed (new_0), which doesn't make much sense
-    # TODO: also need to transform the formal arguments? probably yes
     for s in clauses.symbols():
         if s.is_numeral():
             continue
@@ -216,6 +213,16 @@ def clauses_to_new_vocabulary(clauses):
         renaming[s] = ivy_transrel.new(s)
     return ivy_logic_utils.rename_clauses(clauses, renaming)
 
+def clauses_from_new_vocabulary(clauses):
+    renaming = dict()
+    for s in clauses.symbols():
+        if s.is_numeral():
+            continue
+        if ivy_transrel.is_skolem(s):
+            continue
+        if ivy_transrel.is_new(s):
+            renaming[s] = ivy_transrel.new_of(s)
+    return ivy_logic_utils.rename_clauses(clauses, renaming)
 
 def hide_callers_local_variables(clauses, call_action):
     callee_action = call_action.get_callee()
@@ -288,8 +295,9 @@ def separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses):
 
     pre_clauses = ivy_transrel.hide_clauses(hide_in_pre_syms,
                                              two_vocab_cex_clauses)
-    post_clauses = ivy_transrel.hide_clauses(hide_in_post_syms,
+    post_clauses_post_vocab = ivy_transrel.hide_clauses(hide_in_post_syms,
                                              two_vocab_cex_clauses)
+    post_clauses = clauses_from_new_vocabulary(post_clauses_post_vocab)
     
     return (ivy_interp.State(value=ivy_transrel.pure_state(pre_clauses)),
             ivy_interp.State(value=ivy_transrel.pure_state(post_clauses)))
