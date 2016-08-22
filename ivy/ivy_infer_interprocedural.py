@@ -119,7 +119,7 @@ class ProcedureSummary(object):
         return self._update_clauses
     
     def get_precondition(self):
-        return ivy_logic_utils.false_clauses() # no precondition
+        return ivy_logic_utils.true_clauses() # no precondition
 
 class SummarizedAction(ivy_actions.Action):
     def __init__(self, name, original_action, procedure_summary):
