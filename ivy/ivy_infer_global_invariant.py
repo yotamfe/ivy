@@ -126,7 +126,10 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
    
 class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
     def initial_summary(self):
-        return ivy_infer.PredicateSummary("inv", global_initial_state())
+        return {"inv": ivy_infer.PredicateSummary("inv", global_initial_state())}
+    
+    def top_summary(self):
+        return {"inv": ivy_infer.PredicateSummary("inv", ivy_logic_utils.true_clauses())}
     
     def check_summary_safety(self, summaries):
         inv_summary = summaries["inv"].get_summary()
@@ -137,9 +140,11 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         if bad_inv_model is None:
             return None
        
-        return self._bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model)
+        # TODO: refactor...
+        return [("inv", self._bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model))]
     
-    def check_transformability_to_violation(self, summaries_by_symbol, proof_obligation):
+    def check_transformability_to_violation(self, predicate, summaries_by_symbol, proof_obligation):
+        assert predicate == "inv"
         prestate_summary = summaries_by_symbol["inv"].get_summary()
        
         logger.debug("Single invariant: checking if %s in prestate guarantees %s in poststate", prestate_summary, proof_obligation)
@@ -151,11 +156,11 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
             return None
        
         prestate = countertransition[0]
-        return self._bad_model_to_proof_obligation(ClausesClauses([prestate.clauses]), 
-                                                  ivy_logic_utils.dual_clauses(proof_obligation), 
-                                                  None)
+        return [("inv", self._bad_model_to_proof_obligation(ClausesClauses([prestate.clauses]), 
+                                                            ivy_logic_utils.dual_clauses(proof_obligation), 
+                                                            None))]
         
-    def generalize_intransformability(self, prestate_summaries, poststate_clauses):
+    def generalize_intransformability(self, predicate, prestate_summaries, poststate_clauses):
         import ivy_ui
         import ivy_logic as il
         import logic as lg
@@ -175,6 +180,8 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         from random import randrange
         from ivy_art import AnalysisGraph
         from ivy_interp import State
+        
+        assert predicate == "inv"
        
         prestate_clauses = prestate_summaries["inv"].get_summary()
      
