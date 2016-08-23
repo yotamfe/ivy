@@ -130,7 +130,7 @@ def are_frames_converged(frame1, frame2):
     return True
 
 # TODO: rename current_bound to current_frame?
-def backwards_prove_goal(frames, current_bound, summary_proof_obligations, pdr_elements):
+def backwards_prove_at_least_one_goal(frames, current_bound, summary_proof_obligations, pdr_elements):
     logger.debug("Can block by refining summeries in: %s", 
                  [pred for pred, _ in summary_proof_obligations])
     
@@ -144,7 +144,6 @@ def backwards_prove_goal(frames, current_bound, summary_proof_obligations, pdr_e
         previous_bound = current_bound - 1
        
         while True:
-            # TODO: should also pass the predicate summary we are refining
             previous_frame_summaries = frames[previous_bound].get_summaries_by_symbol_dict()
             previous_bound_proof_obligation = pdr_elements.check_transformability_to_violation(predicate,
                                                                                                previous_frame_summaries,
@@ -153,10 +152,10 @@ def backwards_prove_goal(frames, current_bound, summary_proof_obligations, pdr_e
                 logger.debug("pdr goal at frame %d provable from previous frame: %s", current_bound, summary_proof_obligation)
                 break
            
-            successfully_blocked_this_predicate = backwards_prove_goal(frames, previous_bound,
-                                                                       previous_bound_proof_obligation, pdr_elements)
+            successfully_blocked_this_predicate = backwards_prove_at_least_one_goal(frames, previous_bound,
+                                                                                    previous_bound_proof_obligation, pdr_elements)
             if not successfully_blocked_this_predicate:
-                # TODO: make the meaning clear
+                # couldn't block with this predicate, try to refine the next predicate
                 continue
            
         for i in xrange(1, current_bound + 1):
@@ -166,10 +165,10 @@ def backwards_prove_goal(frames, current_bound, summary_proof_obligations, pdr_e
             logger.debug("pdr strenghening frames up to bound %d with %s", current_bound, summary_proof_obligation_generalization)
             frames[i].strengthen(predicate, summary_proof_obligation_generalization)
            
-        # TODO: make the meaning clear
+        # successfully proved at least one proof goal
         return True
     
-    # TODO: make the meaning clear
+    # couldn't prove any proof goal, cex
     return False
        
 def check_pdr_convergence(frames, current_bound):
@@ -189,7 +188,7 @@ def backward_refine_frames_or_counterexample(frames, new_bound,
             return True
         
     
-        successfully_blocked = backwards_prove_goal(frames, new_bound, safety_proof_obligations, pdr_elements)
+        successfully_blocked = backwards_prove_at_least_one_goal(frames, new_bound, safety_proof_obligations, pdr_elements)
         if not successfully_blocked:
             # TODO: collect counter-trace
             return False
