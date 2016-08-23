@@ -376,6 +376,26 @@ def infer_safe_summaries():
 #         new_proof_goal = generelize_summary_blocking(procedure_summaries[name].get_update_clauses(),
 #                                     proof_goal)
 #         procedure_summaries[name].strengthen(new_proof_goal)
+        procedure_summaries[name].strengthen(ivy_logic_utils.to_clauses('~errorush()'))
+        for subp in actions_dict.iterkeys():
+            if subp.strip() != "get_next":
+                continue
+            else:
+                print "found our action"
+            procedure_summaries[subp].strengthen(zzz_new_no_error_clauses())
+            
+        new_proof_goal = check_procedure_transition(ivy_action, name, 
+                                                procedure_summaries, 
+                                                proof_goal)
+        print new_proof_goal
+        assert new_proof_goal is None
+        
+        procedure_summaries[name].strengthen(zzz_new_no_error_clauses())
+        proc_strengthening = generelize_summary_blocking(procedure_summaries[name].get_update_clauses(),
+                                     ivy_logic_utils.dual_clauses(proof_goal))
+        assert proc_strengthening is not None
+        procedure_summaries[name].strengthen(proc_strengthening)
+        print procedure_summaries[name].get_update_clauses()
         
         
 class GUPDRElements(ivy_infer_universal.UnivPdrElements):
