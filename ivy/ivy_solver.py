@@ -664,7 +664,6 @@ def clauses_imply_list(clauses1, clauses2_list):
     return res
 
 def clauses_list_imply_list(clauses1_list, clauses2_list):
-    print clauses1_list, clauses2_list
     """True if clauses1 imply clauses2.
     """
     s = z3.Solver()
