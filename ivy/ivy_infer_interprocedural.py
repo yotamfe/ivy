@@ -238,16 +238,12 @@ def hide_callers_local_variables(clauses, call_action):
 
     # TODO: MUST TEST this with global variables, local variables, and nested calls
      
-def transition_states_to_summary(call_action, before_state, after_state, 
-                                 procedure_summaries):
+def transition_states_to_summary(before_state, after_state):
     # TODO: translate formal parameters back before this call
     # TODO: because get_updated_vars() uses them and not the uniquely renamed ones
     # TODO: perhaps rename the rest and keep the names of the formal params?...
     
 #     print call_action, before_state, after_state
-
-    callee = call_action.args[0].rep
-    callee_current_summary = procedure_summaries[callee] 
     
     after_clauses_locals_hidden_new_vocab = clauses_to_new_vocabulary(after_state.clauses) 
     
@@ -272,25 +268,29 @@ def get_action_two_vocabulary_clauses(ivy_action, axioms):
     logger.debug("two vocab for procedure: %s", res)
     return res
     
+
+def get_two_vocab_transition_clauses_wrt_summary(ivy_action, procedure_summaries, axioms):
+    with SummarizedActionsContext(procedure_summaries):
+        two_vocab_update = get_action_two_vocabulary_clauses(ivy_action, axioms)
+        
+    return two_vocab_update
+
 def get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name, 
                                                procedure_summaries, two_vocab_obligation):
     axioms = im.module.background_theory()
     
-    with SummarizedActionsContext(procedure_summaries):
-        two_vocab_update = get_action_two_vocabulary_clauses(ivy_action, axioms)
-        clauses_to_check_sat = ivy_transrel.conjoin(two_vocab_update, 
-                                                    ivy_logic_utils.dual_clauses(two_vocab_obligation))
-        
-        clauses_to_check_sat = ivy_transrel.conjoin(clauses_to_check_sat,
-                                                    ivy_logic_utils.to_clauses('~errorush()'))
-        
-        cex_model = ivy_solver.get_model_clauses(clauses_to_check_sat)
-        if cex_model is None:
-            return None
+    two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, procedure_summaries, axioms)
+    clauses_to_check_sat = ivy_transrel.conjoin(two_vocab_update,
+                                                ivy_logic_utils.dual_clauses(two_vocab_obligation))
     
-        clauses_cex = ivy_solver.clauses_model_to_clauses(clauses_to_check_sat,
-                                                          model=cex_model)    
-        return clauses_cex
+    cex_model = ivy_solver.get_model_clauses(clauses_to_check_sat)
+    if cex_model is None:
+        return None
+
+    clauses_cex = ivy_solver.clauses_model_to_clauses(clauses_to_check_sat,
+                                                      model=cex_model)
+    assert clauses_cex != None    
+    return clauses_cex
 
 def separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses):
     updated_syms, _, _ = update_from_action(ivy_action)
@@ -324,14 +324,14 @@ def generate_summary_obligations_from_cex(procedure_summaries, ag):
         subprocedures_transitions = subprocedures_states_iter(ag, ag.states[-1])
         
         for call_action, before_state, after_state in subprocedures_transitions:
-            transition_summary = transition_states_to_summary(call_action, before_state, after_state, 
-                                                              procedure_summaries)
+            transition_summary = transition_states_to_summary(before_state, after_state)
             print transition_summary
             # TODO: use utils from ivy_infer_universal
             universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(transition_summary, model=None))
             summary_locals_hidden = hide_callers_local_variables(universal_transition_summary, call_action)
             # TODO: yield, not return
-            return summary_locals_hidden
+            return [(call_action.callee_name(), summary_locals_hidden)]
+        
     
 def check_procedure_transition(ivy_action, proc_name,
                                procedure_summaries, two_vocab_obligation):
@@ -343,11 +343,18 @@ def check_procedure_transition(ivy_action, proc_name,
     ag = ag_from_two_vocab_cex(proc_name, ivy_action, two_vocab_cex)
     return generate_summary_obligations_from_cex(procedure_summaries, ag)
 
-def generelize_summary_blocking(proc_summary, proof_obligation):
+def generelize_summary_blocking(ivy_action, proc_name, 
+                                procedure_summaries, proof_obligation):
     assert proof_obligation is not None
     axioms = im.module.background_theory()
+    
+    proc_transition_clauses = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
+                                                                           procedure_summaries, axioms)
+    
+    obligation_not = ivy_logic_utils.dual_clauses(proof_obligation)
+    
     NO_INTERPRETED = None
-    res = ivy_transrel.interpolant(proc_summary, proof_obligation,
+    res = ivy_transrel.interpolant(proc_transition_clauses, obligation_not,
                                   axioms, NO_INTERPRETED)
     assert res != None
     return res[1]
@@ -450,8 +457,12 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         return new_proof_goals
     
     def generalize_intransformability(self, predicate, summaries, proof_obligation):
-        return generelize_summary_blocking(summaries[predicate].get_update_clauses(),
-                                           ivy_logic_utils.dual_clauses(proof_obligation))
+        logger.debug("Generalizing intransformability for predicate %s with proof obligation %s",
+                     predicate, proof_obligation)
+        
+        return generelize_summary_blocking(self._actions_dict[predicate], predicate,
+                                           summaries,
+                                           proof_obligation)
 
         
 def usage():
