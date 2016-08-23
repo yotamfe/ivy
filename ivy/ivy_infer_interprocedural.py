@@ -125,6 +125,12 @@ class ProcedureSummary(object):
     
     def get_precondition(self):
         return ivy_logic_utils.true_clauses() # no precondition
+    
+    def implies(self, other_summary):
+        assert self.get_precondition() == other_summary.get_precondition()
+        assert self.get_updated_vars() == other_summary.get_updated_vars()
+        return ivy_solver.clauses_imply(self.get_update_clauses(),
+                                        other_summary.get_update_clauses())
 
 class SummarizedAction(ivy_actions.Action):
     def __init__(self, name, original_action, procedure_summary):
@@ -332,6 +338,9 @@ def generate_summary_obligations_from_cex(procedure_summaries, ag):
             # TODO: yield, not return
             return [(call_action.callee_name(), summary_locals_hidden)]
         
+    # TODO: this actually assumes that the action consists of at least something more than the
+    # TODO: call, otherwise the result is still [] although we have what to refine
+    # FIXME: make sure that such procedures are inlined or treated carefully
     return []
     
 def check_procedure_transition(ivy_action, proc_name,
@@ -364,7 +373,9 @@ def generelize_summary_blocking(ivy_action, proc_name,
                                         
                 
 def infer_safe_summaries():
-    res = ivy_infer.pdr(GUPDRElements(ivy_module.module.actions))
+    exported_actions_names = [ed.exported() for ed in ivy_module.module.exports]
+    res = ivy_infer.pdr(GUPDRElements(ivy_module.module.actions,
+                                      exported_actions_names))
     
     if res is None:
         logger.info("Not safe!")
@@ -410,14 +421,50 @@ def infer_safe_summaries():
 #         procedure_summaries[name].strengthen(proc_strengthening)
 #         print procedure_summaries[name].get_update_clauses()
 #         
+
+# TODO: remove
+def global_initial_state():
+    with im.module.copy():
+        ivy_isolate.create_isolate(None) # ,ext='ext'
+        ag = ivy_art.AnalysisGraph(initializer=ivy_alpha.alpha)
+        with ivy_interp.EvalContext(check=False):
+            assert len(ag.states) == 1
+            # TODO: need the background theory?
+            # state1 = ag.states[0]
+            # initial_state_clauses = ivy_logic_utils.and_clauses(state1.clauses,state1.domain.background_theory(state1.in_scope))
+            initial_state_clauses = ag.states[0].clauses
+            logger.debug("initial state clauses: %s", initial_state_clauses)
+            return initial_state_clauses
         
 class GUPDRElements(ivy_infer_universal.UnivPdrElements):
-    def __init__(self, actions_dict):
+    def __init__(self, actions_dict, exported_actions_names):
         super(GUPDRElements, self).__init__()
         
         self._actions_dict = actions_dict
+        self._exported_actions_names = exported_actions_names
         
     def initial_summary(self):
+#         procedure_summaries = {}
+#         
+#         # TODO: hack?
+#         global_initial_pre_vocab = global_initial_state()
+#     
+#         for name, _ in self._actions_dict.iteritems():
+#             procedure_summaries[name] = ProcedureSummary()
+#             procedure_summaries[name]._update_clauses = global_initial_pre_vocab
+#             
+#         return procedure_summaries
+        procedure_summaries = {}
+    
+        for name, _ in self._actions_dict.iteritems():
+            procedure_summaries[name] = ProcedureSummary()
+            # TODO: hack, and explain
+            procedure_summaries[name]._update_clauses = ivy_logic_utils.false_clauses()
+            
+        return procedure_summaries
+    
+    
+    def top_summary(self):
         procedure_summaries = {}
     
         for name, _ in self._actions_dict.iteritems():
@@ -425,13 +472,11 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             
         return procedure_summaries
     
-    def top_summary(self):
-        return self.initial_summary() # TODO: not right...
-    
     # Return None if safe or proof obligation otherwise
     def check_summary_safety(self, summaries):
-        # TODO: check every procedure? Or just the main procedure?
-        for name, ivy_action in self._actions_dict.iteritems():
+        for name in self._exported_actions_names:
+            logger.debug("Checking safety of proc %s", name)
+            ivy_action = self._actions_dict[name]
             proof_goals = check_procedure_transition(ivy_action, name, 
                                                      summaries, self._get_safety_property())
             if proof_goals is not None:

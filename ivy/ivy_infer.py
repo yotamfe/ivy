@@ -92,6 +92,10 @@ class PredicateSummary(object):
     def strengthen(self, summary_strengthening):
         self._summary.conjoin(summary_strengthening)
         
+    def implies(self, other_summary):
+        return all(ivy_solver.clauses_list_imply_list(self.get_summary().get_conjuncts_clauses_list(),
+                                                  other_summary.get_summary().get_conjuncts_clauses_list()))
+        
 class SummaryProofObligation(object):
     def __init__(self, predicate, obligation_clauses):
         self._predicate = predicate
@@ -122,16 +126,15 @@ def are_frames_converged(frame1, frame2):
     for predicate_symbol in summaries_dict_2.iterkeys():
         summary1 = summaries_dict_1.get(predicate_symbol)
         summary2 = summaries_dict_2.get(predicate_symbol)
-        if not all(ivy_solver.clauses_list_imply_list(summary2.get_summary().get_conjuncts_clauses_list(),
-                                                  summary1.get_summary().get_conjuncts_clauses_list())):
-
+        if not summary2.implies(summary1):
             return False
-
+        
     return True
 
 def backwards_try_prove_single_goal(predicate, summary_proof_obligation, 
                                     frames, current_bound, pdr_elements):
     if current_bound == 0:
+        logger.debug("Dead end: nowhere to go from frame 0...")
         return False
    
     previous_bound = current_bound - 1
@@ -142,7 +145,8 @@ def backwards_try_prove_single_goal(predicate, summary_proof_obligation,
                                                                                            previous_frame_summaries,
                                                                                            summary_proof_obligation)
         if previous_bound_proof_obligation is None:
-            logger.debug("pdr goal at frame %d provable from previous frame: %s", current_bound, summary_proof_obligation)
+            logger.debug("pdr goal at frame %d for %s provable from previous frame: %s", 
+                         current_bound, predicate, summary_proof_obligation)
             return True
        
         successfully_blocked_in_previous_frame = backwards_prove_at_least_one_goal(frames, previous_bound,
@@ -158,7 +162,7 @@ def backwards_prove_at_least_one_goal(frames, current_bound, summary_proof_oblig
                  [pred for pred, _ in summary_proof_obligations])
     
     for predicate, summary_proof_obligation in summary_proof_obligations:
-        logger.debug("Trying to block %s for predicate %s from frame %d", summary_proof_obligation, 
+        logger.debug("Trying to prove %s for predicate %s from frame %d", summary_proof_obligation, 
                                                                           predicate,
                                                                           current_bound)
         successfully_blocked_this_predicate = backwards_try_prove_single_goal(predicate, summary_proof_obligation,
