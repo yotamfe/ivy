@@ -129,6 +129,29 @@ def are_frames_converged(frame1, frame2):
 
     return True
 
+def backwards_try_prove_single_goal(predicate, summary_proof_obligation, 
+                                    frames, current_bound, pdr_elements):
+    if current_bound == 0:
+        return False
+   
+    previous_bound = current_bound - 1
+   
+    while True:
+        previous_frame_summaries = frames[previous_bound].get_summaries_by_symbol_dict()
+        previous_bound_proof_obligation = pdr_elements.check_transformability_to_violation(predicate,
+                                                                                           previous_frame_summaries,
+                                                                                           summary_proof_obligation)
+        if previous_bound_proof_obligation is None:
+            logger.debug("pdr goal at frame %d provable from previous frame: %s", current_bound, summary_proof_obligation)
+            return True
+       
+        successfully_blocked_in_previous_frame = backwards_prove_at_least_one_goal(frames, previous_bound,
+                                                                                   previous_bound_proof_obligation, pdr_elements)
+        if not successfully_blocked_in_previous_frame:
+            return False
+        
+    return True
+
 # TODO: rename current_bound to current_frame?
 def backwards_prove_at_least_one_goal(frames, current_bound, summary_proof_obligations, pdr_elements):
     logger.debug("Can block by refining summeries in: %s", 
@@ -138,25 +161,10 @@ def backwards_prove_at_least_one_goal(frames, current_bound, summary_proof_oblig
         logger.debug("Trying to block %s for predicate %s from frame %d", summary_proof_obligation, 
                                                                           predicate,
                                                                           current_bound)
-        if current_bound == 0:
-            return False
-       
-        previous_bound = current_bound - 1
-       
-        while True:
-            previous_frame_summaries = frames[previous_bound].get_summaries_by_symbol_dict()
-            previous_bound_proof_obligation = pdr_elements.check_transformability_to_violation(predicate,
-                                                                                               previous_frame_summaries,
-                                                                                               summary_proof_obligation)
-            if previous_bound_proof_obligation is None:
-                logger.debug("pdr goal at frame %d provable from previous frame: %s", current_bound, summary_proof_obligation)
-                break
-           
-            successfully_blocked_this_predicate = backwards_prove_at_least_one_goal(frames, previous_bound,
-                                                                                    previous_bound_proof_obligation, pdr_elements)
-            if not successfully_blocked_this_predicate:
-                # couldn't block with this predicate, try to refine the next predicate
-                continue
+        successfully_blocked_this_predicate = backwards_try_prove_single_goal(predicate, summary_proof_obligation,
+                                                                              frames, current_bound, pdr_elements)
+        if not successfully_blocked_this_predicate:
+            continue
            
         for i in xrange(1, current_bound + 1):
             summary_proof_obligation_generalization = pdr_elements.generalize_intransformability(predicate,

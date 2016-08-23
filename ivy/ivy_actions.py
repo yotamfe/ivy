@@ -704,6 +704,8 @@ class CallAction(Action):
     def __str__(self):
         actual_returns = self.args[1:]
         return 'call ' + (','.join(str(a) for a in actual_returns) + ':= ' if actual_returns else '') + str(self.args[0])
+    def callee_name(self):
+        return self.args[0].rep
     def get_callee(self):
         global context
         name = self.args[0].rep
