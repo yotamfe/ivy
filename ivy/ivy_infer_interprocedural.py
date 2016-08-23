@@ -77,6 +77,7 @@ import ivy_module
 import ivy_infer_universal
 import ivy_logic_utils
 import ivy_solver
+import ivy_infer
 
 import sys
 import logging
@@ -271,8 +272,8 @@ def get_action_two_vocabulary_clauses(ivy_action, axioms):
     logger.debug("two vocab for procedure: %s", res)
     return res
     
-def get_cex_two_vocabulary_obligation(ivy_action, proc_name, 
-                                    procedure_summaries, two_vocab_obligation):
+def get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name, 
+                                               procedure_summaries, two_vocab_obligation):
     axioms = im.module.background_theory()
     
     with SummarizedActionsContext(procedure_summaries):
@@ -319,26 +320,22 @@ def ag_from_two_vocab_cex(action_name, ivy_action, two_vocab_cex_clauses):
     
 def generate_summary_obligations_from_cex(procedure_summaries, ag):
     with SummarizedActionsContext(procedure_summaries):
-        assert len(ag.states) == 2        
-        subprocs_states = subprocedures_states_iter(ag, ag.states[1])
+        assert len(ag.states) == 2
+        subprocedures_transitions = subprocedures_states_iter(ag, ag.states[-1])
         
-        for call_action, before_state, after_state in subprocs_states:
-            print "Before clauses", before_state.clauses
-            print "After clauses", after_state.clauses
-            assert False
+        for call_action, before_state, after_state in subprocedures_transitions:
             transition_summary = transition_states_to_summary(call_action, before_state, after_state, 
                                                               procedure_summaries)
             print transition_summary
             # TODO: use utils from ivy_infer_universal
             universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(transition_summary, model=None))
             summary_locals_hidden = hide_callers_local_variables(universal_transition_summary, call_action)
-            print summary_locals_hidden
             # TODO: yield, not return
             return summary_locals_hidden
     
 def check_procedure_transition(ivy_action, proc_name,
                                procedure_summaries, two_vocab_obligation):
-    two_vocab_cex = get_cex_two_vocabulary_obligation(ivy_action, proc_name,
+    two_vocab_cex = get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name,
                                      procedure_summaries, two_vocab_obligation)
     if two_vocab_cex is None:
         return None
@@ -347,6 +344,7 @@ def check_procedure_transition(ivy_action, proc_name,
     return generate_summary_obligations_from_cex(procedure_summaries, ag)
 
 def generelize_summary_blocking(proc_summary, proof_obligation):
+    assert proof_obligation is not None
     axioms = im.module.background_theory()
     NO_INTERPRETED = None
     res = ivy_transrel.interpolant(proc_summary, proof_obligation,
@@ -356,47 +354,52 @@ def generelize_summary_blocking(proc_summary, proof_obligation):
                                         
                 
 def infer_safe_summaries():
-    procedure_summaries = {}
+    res = ivy_infer.pdr(GUPDRElements(ivy_module.module.actions))
     
-    actions_dict = ivy_module.module.actions
-    for name, ivy_action in actions_dict.iteritems():
-        procedure_summaries[name] = ProcedureSummary()
-        
-    #proof_goal = ivy_logic_utils.to_clauses('~errorush()')
-    proof_goal = zzz_new_no_error_clauses()    
-    
-    name, ivy_action = actions_dict.items()[0]
-    if True:
-        new_proof_goal = check_procedure_transition(ivy_action, name, 
-                                                procedure_summaries, 
-                                                proof_goal)
-        print new_proof_goal
-        #procedure_summaries[name].strengthen(ivy_logic_utils.to_clauses('~errorush()'))
+    if res is None:
+        logger.info("Not safe!")
+    else:
+        logger.info("Safe!")
+        for name, summary in res.iteritems():
+            logger.debug("Summary of procedure %s:", name)
+            logger.debug("%s" % summary.get_update_clauses())
+            logger.debug("")
+
+#     procedure_summaries = {}
+#     actions_dict = ivy_module.module.actions
+#     for name, ivy_action in actions_dict.iteritems():
+#         procedure_summaries[name] = ProcedureSummary()
+#         
+#     #proof_goal = ivy_logic_utils.to_clauses('~errorush()')
+#     proof_goal = zzz_new_no_error_clauses()    
+#     
+#     name, ivy_action = actions_dict.items()[0]
+#     if True:
+#         new_proof_goal = check_procedure_transition(ivy_action, name, 
+#                                                 procedure_summaries, 
+#                                                 proof_goal)
+#         print new_proof_goal
+#         procedure_summaries[name].strengthen(ivy_logic_utils.to_clauses('~errorush()'))
+#         for subp in actions_dict.iterkeys():
+#             if subp.strip() != "get_next":
+#                 continue
+#             else:
+#                 print "found our action"
+#             procedure_summaries[subp].strengthen(zzz_new_no_error_clauses())
+#             
+#         new_proof_goal = check_procedure_transition(ivy_action, name, 
+#                                                 procedure_summaries, 
+#                                                 proof_goal)
+#         print new_proof_goal
+#         assert new_proof_goal is None
+#         
 #         procedure_summaries[name].strengthen(zzz_new_no_error_clauses())
-#         new_proof_goal = generelize_summary_blocking(procedure_summaries[name].get_update_clauses(),
-#                                     proof_goal)
-#         procedure_summaries[name].strengthen(new_proof_goal)
-        procedure_summaries[name].strengthen(ivy_logic_utils.to_clauses('~errorush()'))
-        for subp in actions_dict.iterkeys():
-            if subp.strip() != "get_next":
-                continue
-            else:
-                print "found our action"
-            procedure_summaries[subp].strengthen(zzz_new_no_error_clauses())
-            
-        new_proof_goal = check_procedure_transition(ivy_action, name, 
-                                                procedure_summaries, 
-                                                proof_goal)
-        print new_proof_goal
-        assert new_proof_goal is None
-        
-        procedure_summaries[name].strengthen(zzz_new_no_error_clauses())
-        proc_strengthening = generelize_summary_blocking(procedure_summaries[name].get_update_clauses(),
-                                     ivy_logic_utils.dual_clauses(proof_goal))
-        assert proc_strengthening is not None
-        procedure_summaries[name].strengthen(proc_strengthening)
-        print procedure_summaries[name].get_update_clauses()
-        
+#         proc_strengthening = generelize_summary_blocking(procedure_summaries[name].get_update_clauses(),
+#                                      ivy_logic_utils.dual_clauses(proof_goal))
+#         assert proc_strengthening is not None
+#         procedure_summaries[name].strengthen(proc_strengthening)
+#         print procedure_summaries[name].get_update_clauses()
+#         
         
 class GUPDRElements(ivy_infer_universal.UnivPdrElements):
     def __init__(self, actions_dict):
@@ -407,25 +410,48 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
     def initial_summary(self):
         procedure_summaries = {}
     
-        for name, ivy_action in self._actions_dict.iteritems():
+        for name, _ in self._actions_dict.iteritems():
             procedure_summaries[name] = ProcedureSummary()
             
         return procedure_summaries
     
+    def top_summary(self):
+        return self.initial_summary() # TODO: not right...
+    
     # Return None if safe or proof obligation otherwise
     def check_summary_safety(self, summaries):
-        pass
+        # TODO: check every procedure? Or just the main procedure?
+        for name, ivy_action in self._actions_dict.iteritems():
+            proof_goals = check_procedure_transition(ivy_action, name, 
+                                                     summaries, self._get_safety_property())
+            if proof_goals is not None:
+                return proof_goals
+        return None
+    
+    def _get_safety_property(self):
+        no_cme = ivy_logic_utils.to_clauses('~cme(I)')
+        no_cme_next = clauses_to_new_vocabulary(no_cme)
+        return ivy_transrel.conjoin(no_cme, no_cme_next) 
     
     # Return None or a new proof obligation
-    def check_transformability_to_violation(self, predicate, summaries_by_symbol, proof_obligation):
+    def check_transformability_to_violation(self, predicate, summaries_by_symbol, 
+                                            proof_obligation):
         procedure_name_to_check = predicate
         procedure_summaries = summaries_by_symbol
         
-        with SummarizedActionsContext(procedure_summaries):
-            pass
+        ivy_action = self._actions_dict[procedure_name_to_check]
+        
+        new_proof_goals = check_procedure_transition(ivy_action, procedure_name_to_check, 
+                                                   procedure_summaries, 
+                                                   proof_obligation)
+        if new_proof_goals is None:
+            return None
+        
+        return new_proof_goals
     
-    def generalize_intransformability(self, predicate, prestate_summaries, poststate_clauses):
-        pass
+    def generalize_intransformability(self, predicate, summaries, proof_obligation):
+        return generelize_summary_blocking(summaries[predicate].get_update_clauses(),
+                                           ivy_logic_utils.dual_clauses(proof_obligation))
 
         
 def usage():
