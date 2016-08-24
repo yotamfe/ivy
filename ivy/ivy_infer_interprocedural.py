@@ -272,21 +272,52 @@ def get_action_two_vocabulary_clauses(ivy_action, axioms):
                                                                  if x not in updated))
     res = ivy_transrel.conjoin(pre, clauses_new_vocab)
     logger.debug("two vocab for procedure: %s", res)
-    return res
+    return updated, res
     
 
 def get_two_vocab_transition_clauses_wrt_summary(ivy_action, procedure_summaries, axioms):
     with SummarizedActionsContext(procedure_summaries):
-        two_vocab_update = get_action_two_vocabulary_clauses(ivy_action, axioms)
+        res = get_action_two_vocabulary_clauses(ivy_action, axioms)
         
-    return two_vocab_update
+    return res
+
+def extend_two_vocab_update_with_frames(two_vocab_update, updated_syms, all_syms):
+    not_updated_syms = filter(lambda s: s not in updated_syms, all_syms)
+    other_syms_not_updated = ivy_transrel.frame(not_updated_syms,
+                                                None,
+                                                ivy_transrel.new)
+    
+    return ivy_transrel.conjoin(two_vocab_update, other_syms_not_updated)
+
+
+def get_two_vocabulary_update_clauses_wrt_vocab(ivy_action, procedure_summaries, 
+                                                more_two_vocab_syms, axioms):
+    updated_syms, two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
+                                                                                  procedure_summaries, 
+                                                                                  axioms)
+    
+    more_syms = set()
+    for s in more_two_vocab_syms:
+        if not ivy_transrel.is_new(s):
+            more_syms.add(s)
+        else:
+            more_syms.add(ivy_transrel.new_of(s))
+    
+    two_vocab_update_with_frames =  extend_two_vocab_update_with_frames(two_vocab_update, 
+                                                                        updated_syms, 
+                                                                        more_syms)
+    return two_vocab_update_with_frames
 
 def get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name, 
-                                               procedure_summaries, two_vocab_obligation):
+                                               procedure_summaries, two_vocab_obligation):    
     axioms = im.module.background_theory()
     
-    two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, procedure_summaries, axioms)
-    clauses_to_check_sat = ivy_transrel.conjoin(two_vocab_update,
+    two_vocab_update_with_frames = get_two_vocabulary_update_clauses_wrt_vocab(ivy_action, 
+                                                                               procedure_summaries, 
+                                                                               two_vocab_obligation.symbols(), 
+                                                                               axioms)
+    
+    clauses_to_check_sat = ivy_transrel.conjoin(two_vocab_update_with_frames,
                                                 ivy_logic_utils.dual_clauses(two_vocab_obligation))
     
     cex_model = ivy_solver.get_model_clauses(clauses_to_check_sat)
@@ -362,8 +393,10 @@ def generelize_summary_blocking(ivy_action, proc_name,
     assert proof_obligation is not None
     axioms = im.module.background_theory()
     
-    proc_transition_clauses = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
-                                                                           procedure_summaries, axioms)
+    proc_transition_clauses = get_two_vocabulary_update_clauses_wrt_vocab(ivy_action, 
+                                                                          procedure_summaries, 
+                                                                           proof_obligation.symbols(), 
+                                                                           axioms)
     
     obligation_not = ivy_logic_utils.dual_clauses(proof_obligation)
     
