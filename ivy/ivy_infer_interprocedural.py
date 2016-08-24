@@ -300,8 +300,6 @@ def get_two_vocabulary_update_clauses_wrt_vocab(ivy_action, procedure_summaries,
     for s in more_two_vocab_syms:
         if not ivy_transrel.is_new(s):
             more_syms.add(s)
-        else:
-            more_syms.add(ivy_transrel.new_of(s))
     
     two_vocab_update_with_frames =  extend_two_vocab_update_with_frames(two_vocab_update, 
                                                                         updated_syms, 
