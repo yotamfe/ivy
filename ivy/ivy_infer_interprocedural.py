@@ -116,8 +116,14 @@ class ProcedureSummary(object):
         self._updated_syms = formal_params + get_signature_symbols()                                                             
     
     def strengthen(self, summary_strengthening):
+        strenghening_clauses, updated_syms = summary_strengthening
         self._update_clauses = ivy_transrel.conjoin(self._update_clauses, 
-                                                    summary_strengthening)
+                                                    strenghening_clauses)
+        self._strengthen_updated_syms(updated_syms)
+        
+    def _strengthen_updated_syms(self, new_updated_syms): 
+        assert all(s in self.get_updated_vars() for s in new_updated_syms)
+        self._updated_syms = new_updated_syms
         
     # including both constants and relations!
     def get_updated_vars(self):
@@ -131,7 +137,9 @@ class ProcedureSummary(object):
     
     def implies(self, other_summary):
         assert self.get_precondition() == other_summary.get_precondition()
-        assert self.get_updated_vars() == other_summary.get_updated_vars()
+        if any(s not in other_summary.get_updated_vars()
+                    for s in self.get_updated_vars()):
+            return False
         return ivy_solver.clauses_imply(self.get_update_clauses(),
                                         other_summary.get_update_clauses())
 
@@ -396,7 +404,8 @@ def generelize_summary_blocking(ivy_action, proc_name,
     res = ivy_transrel.interpolant(two_vocab_update, obligation_not,
                                   axioms, NO_INTERPRETED)
     assert res != None
-    return res[1]
+    two_vocab_inferred_fact = res[1]
+    return two_vocab_inferred_fact, updated_syms 
                                         
                 
 def infer_safe_summaries():
