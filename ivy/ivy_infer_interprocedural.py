@@ -355,6 +355,11 @@ def ag_from_two_vocab_cex(action_name, ivy_action, two_vocab_cex_clauses):
     return ag
     
 def generate_summary_obligations_from_cex(procedure_summaries, ag):
+    # TODO: this actually assumes that the action consists of at least something more than the
+    # TODO: call, otherwise the result is still [] although we have what to refine
+    # FIXME: make sure that such procedures are inlined or treated carefully
+    summary_obligations = []
+    
     with SummarizedActionsContext(procedure_summaries):
         assert len(ag.states) == 2
         subprocedures_transitions = subprocedures_states_iter(ag, ag.states[-1])
@@ -365,13 +370,10 @@ def generate_summary_obligations_from_cex(procedure_summaries, ag):
             # TODO: use utils from ivy_infer_universal
             universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(transition_summary, model=None))
             summary_locals_hidden = hide_callers_local_variables(universal_transition_summary, call_action)
-            # TODO: yield, not return
-            return [(call_action.callee_name(), summary_locals_hidden)]
+            
+            summary_obligations.append((call_action.callee_name(), summary_locals_hidden))
         
-    # TODO: this actually assumes that the action consists of at least something more than the
-    # TODO: call, otherwise the result is still [] although we have what to refine
-    # FIXME: make sure that such procedures are inlined or treated carefully
-    return []
+    return summary_obligations
     
 def check_procedure_transition(ivy_action, proc_name,
                                procedure_summaries, two_vocab_obligation):
