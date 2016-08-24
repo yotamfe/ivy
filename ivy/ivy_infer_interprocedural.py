@@ -345,15 +345,17 @@ def generate_summary_obligations_from_cex(procedure_summaries, ag):
     
 def check_procedure_transition(ivy_action, proc_name,
                                procedure_summaries, two_vocab_obligation):
-    two_vocab_cex = get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name,
-                                     procedure_summaries, two_vocab_obligation)
-    if two_vocab_cex is None:
-        return None
-
-    ag = ag_from_two_vocab_cex(proc_name, ivy_action, two_vocab_cex)
-    summary_obligations = generate_summary_obligations_from_cex(procedure_summaries, ag)
-    assert summary_obligations != None
-    return summary_obligations
+    with SummarizedActionsContext(procedure_summaries):
+        two_vocab_cex = get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name,
+                                         procedure_summaries, two_vocab_obligation)
+        if two_vocab_cex is None:
+            return None
+        logger.debug("Got cex: %s", two_vocab_cex)
+    
+        ag = ag_from_two_vocab_cex(proc_name, ivy_action, two_vocab_cex)
+        summary_obligations = generate_summary_obligations_from_cex(procedure_summaries, ag)
+        assert summary_obligations != None
+        return summary_obligations
 
 def generelize_summary_blocking(ivy_action, proc_name, 
                                 procedure_summaries, proof_obligation):
