@@ -107,18 +107,21 @@ def get_signature_symbols():
     
 
 class ProcedureSummary(object):
-    def __init__(self):
+    def __init__(self, formal_params):
         super(ProcedureSummary, self).__init__()
         
-        self._update_clauses = ivy_logic_utils.true_clauses()                                                             
+        self._update_clauses = ivy_logic_utils.true_clauses()
+        
+        # TODO: document meaning
+        self._updated_syms = formal_params + get_signature_symbols()                                                             
     
     def strengthen(self, summary_strengthening):
         self._update_clauses = ivy_transrel.conjoin(self._update_clauses, 
                                                     summary_strengthening)
         
+    # including both constants and relations!
     def get_updated_vars(self):
-        # including both constants and relations!
-        return get_signature_symbols()
+        return self._updated_syms
     
     def get_update_clauses(self):
         return self._update_clauses
@@ -460,6 +463,9 @@ def global_initial_state():
             logger.debug("initial state clauses: %s", initial_state_clauses)
             return initial_state_clauses
         
+def formal_params_of_action(ivy_action):
+    return ivy_action.formal_params + ivy_action.formal_returns
+        
 class GUPDRElements(ivy_infer_universal.UnivPdrElements):
     def __init__(self, actions_dict, exported_actions_names):
         super(GUPDRElements, self).__init__()
@@ -480,8 +486,8 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
 #         return procedure_summaries
         procedure_summaries = {}
     
-        for name, _ in self._actions_dict.iteritems():
-            procedure_summaries[name] = ProcedureSummary()
+        for name, ivy_action in self._actions_dict.iteritems():
+            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action))
             # TODO: hack, and explain
             procedure_summaries[name]._update_clauses = ivy_logic_utils.false_clauses()
             
@@ -491,8 +497,8 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
     def top_summary(self):
         procedure_summaries = {}
     
-        for name, _ in self._actions_dict.iteritems():
-            procedure_summaries[name] = ProcedureSummary()
+        for name, ivy_action in self._actions_dict.iteritems():
+            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action))
             
         return procedure_summaries
     
