@@ -105,6 +105,11 @@ def get_signature_symbols():
     # including both constants and relations!
     return sig_symbols
     
+def is_symbol_pre_in_vocab(sym, pre_vocab):
+    if not ivy_transrel.is_new(sym):
+        return sym in pre_vocab
+    assert ivy_transrel.is_new(sym)
+    return ivy_transrel.new_of(sym) in pre_vocab
 
 class ProcedureSummary(object):
     def __init__(self, formal_params):
@@ -113,12 +118,34 @@ class ProcedureSummary(object):
         self._update_clauses = ivy_logic_utils.true_clauses()
         
         # TODO: document meaning
-        self._updated_syms = formal_params + get_signature_symbols()                                                             
+        self._summary_vocab = formal_params + get_signature_symbols()
+        self._updated_syms = self._summary_vocab
+        
+    def _update_strenghening_to_vocab_update(self, summary_strengthening):
+        strenghening_clauses, updated_syms = summary_strengthening
+        
+        syms_to_hide = [s for s in set(updated_syms) | set(strenghening_clauses.symbols()) 
+                            if not is_symbol_pre_in_vocab(s, self._summary_vocab)]
+        
+        update = (updated_syms, strenghening_clauses, self.get_precondition())
+        
+        update_in_vocab = ivy_transrel.hide(syms_to_hide, update)
+        
+        (updated_syms_in_vocab, 
+         strengthening_clauses_in_vocab, 
+         precondition_in_vocab) = update_in_vocab
+         
+        assert precondition_in_vocab == self.get_precondition()
+        
+        return (updated_syms_in_vocab, strengthening_clauses_in_vocab)
+                                                                     
     
     def strengthen(self, summary_strengthening):
-        strenghening_clauses, updated_syms = summary_strengthening
+        strengthening_in_vocab = self._update_strenghening_to_vocab_update(summary_strengthening)
+        updated_syms, strengthening_clauses = strengthening_in_vocab
+        
         self._update_clauses = ivy_transrel.conjoin(self._update_clauses, 
-                                                    strenghening_clauses)
+                                                    strengthening_clauses)
         self._strengthen_updated_syms(updated_syms)
         
     def _strengthen_updated_syms(self, new_updated_syms): 
@@ -247,7 +274,10 @@ def clauses_from_new_vocabulary_except_for(clauses, updated_syms):
 
 def clauses_from_new_vocabulary(clauses):
     return clauses_from_new_vocabulary_except_for(clauses, set())
-    
+
+def hide_symbol_if(clauses, should_hide_pred):
+    syms_to_hide = [s for s in clauses.symbols() if should_hide_pred(s)]
+    return ivy_transrel.hide_clauses(syms_to_hide, clauses)
 
 def hide_callers_local_variables(clauses, call_action):
     callee_action = call_action.get_callee()
@@ -256,10 +286,8 @@ def hide_callers_local_variables(clauses, call_action):
     symbols_can_be_modified_two_vocab = symbols_can_be_modified + \
                                         [ivy_transrel.new(s) for s in symbols_can_be_modified]
     
-    unrelated_syms = [s for s in clauses.symbols() 
-                        if s not in symbols_can_be_modified_two_vocab and not s.is_numeral()]
-    return ivy_transrel.hide_clauses(unrelated_syms, clauses)
-
+    return hide_symbol_if(clauses, lambda s: s not in symbols_can_be_modified_two_vocab 
+                                                and not s.is_numeral())
     # TODO: MUST TEST this with global variables, local variables, and nested calls
      
 def transition_states_to_summary(before_state, after_state):

@@ -757,7 +757,8 @@ class CallAction(Action):
 #        print "with parameter assigns: {}".format(res)
         res = res.int_update(domain,pvars)
 #        print "call update: {}".format(res)
-        res = hide(formal_params+formal_returns,res)
+        # TODO: consult context regarding whether should hide (default True)
+        #res = hide(formal_params+formal_returns,res)
 #        print "after hide: {}".format(res)
         return res
     def prefix_calls(self,pref):
