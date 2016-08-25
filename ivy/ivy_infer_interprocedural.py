@@ -214,6 +214,10 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         return SummarizedAction(symbol, original_action, 
                                 self._procedure_summaries[symbol])
         
+    # Override
+    def should_hide_applied_call_formals(self):
+        return False
+        
 def subprocedures_states_iter(ag, state_to_decompose):
     analysis_graph = ag.decompose_state_partially_repsect_context(state_to_decompose)
     assert analysis_graph is not None

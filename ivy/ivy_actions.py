@@ -60,6 +60,8 @@ class ActionContext(object):
         domain = self.domain if self.domain is not None else domain
         assert domain is not None
         return domain.new_state(clauses)
+    def should_hide_applied_call_formals(self):
+        return True
 
 context = ActionContext()
 
@@ -725,6 +727,9 @@ class CallAction(Action):
                 v = state_to_action(v.value)
 ##                print "called state: {}".format(v)
         return v
+    def should_hide_applied_formals(self):
+        global context
+        return context.should_hide_applied_call_formals()
     def apply_actuals(self,domain,pvars,v):
         assert hasattr(v,'formal_params'), v
         actual_params = self.args[0].args
@@ -757,8 +762,8 @@ class CallAction(Action):
 #        print "with parameter assigns: {}".format(res)
         res = res.int_update(domain,pvars)
 #        print "call update: {}".format(res)
-        # TODO: consult context regarding whether should hide (default True)
-        #res = hide(formal_params+formal_returns,res)
+        if self.should_hide_applied_formals():
+            res = hide(formal_params+formal_returns,res)
 #        print "after hide: {}".format(res)
         return res
     def prefix_calls(self,pref):
