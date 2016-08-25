@@ -344,7 +344,9 @@ def get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name,
                                                                       updated_syms)
     logger.debug("two vocab obligation respecting updated syms: %s", two_vocab_obligation)
     
-    clauses_to_check_sat = ivy_transrel.conjoin(two_vocab_update,
+    update_with_axioms = ivy_transrel.conjoin(two_vocab_update, axioms)
+    
+    clauses_to_check_sat = ivy_transrel.conjoin(update_with_axioms,
                                                 ivy_logic_utils.dual_clauses(obligation_wrt_sym_update))
     
     cex_model = ivy_solver.get_model_clauses(clauses_to_check_sat)
