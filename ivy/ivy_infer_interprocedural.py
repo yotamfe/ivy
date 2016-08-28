@@ -199,6 +199,50 @@ class SummarizedAction(ivy_actions.Action):
         clauses  = self._procedure_summary.get_update_clauses()
         pre      = self._procedure_summary.get_precondition()
         return (updated, clauses, pre)
+
+class CallsVarRenamer(object):
+    def __init__(self):
+        super(CallsVarRenamer, self).__init__()
+        
+        self._calls_to_ids = {}
+        self._max_id = 0
+        
+        self._renaming = {}
+        
+
+    def _add_to_known_calls_if_necessary(self, call_action):
+        if call_action not in self._calls_to_ids.keys():
+            self._max_id += 1
+            self._calls_to_ids[call_action] = self._max_id
+
+    def unique_formals(self, call_action, formals):
+        self._add_to_known_calls_if_necessary(call_action)
+            
+        res = {}
+        for s in formals:
+            call_id = self._calls_to_ids[call_action]
+            globally_unique_renamer = lambda name: "fc%d_%s" % (call_id, name)
+            unique_sym = ivy_transrel.rename(s, globally_unique_renamer)
+            
+            res[s] = unique_sym
+            
+            self._renaming[s] = unique_sym
+            
+        return res 
+    
+    def invert_formals_syms(self, clauses, call_action, formals):
+        assert call_action in self._calls_to_ids.keys()
+        
+        inverse_formals_map = {}
+        for s in formals:
+            renamed_s = self._renaming[s]
+            inverse_formals_map[renamed_s] = s
+            inverse_formals_map[ivy_transrel.new(renamed_s)] = ivy_transrel.new(s)
+            
+        return ivy_transrel.rename_clauses(clauses, inverse_formals_map)
+        
+        
+calls_vars_renamer = CallsVarRenamer()
     
 # Used for interpreting the semantics of called procedures by their summary
 # Affects ivy_actions.CallAction.get_callee()
@@ -217,6 +261,12 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
     # Override
     def should_hide_applied_call_formals(self):
         return False
+    
+    # Override
+    def generate_unique_formals_renaming(self, call_action, formals, vocab):
+        global calls_vars_renamer
+        return calls_vars_renamer.unique_formals(call_action, formals)
+    
         
 def subprocedures_states_iter(ag, state_to_decompose):
     analysis_graph = ag.decompose_state_partially_repsect_context(state_to_decompose)
@@ -283,9 +333,16 @@ def hide_symbol_if(clauses, should_hide_pred):
     syms_to_hide = [s for s in clauses.symbols() if should_hide_pred(s)]
     return ivy_transrel.hide_clauses(syms_to_hide, clauses)
 
-def hide_callers_local_variables(clauses, call_action):
+def transform_to_callee_summary_vocabulary(clauses, call_action):
     callee_action = call_action.get_callee()
     formals = callee_action.formal_params + callee_action.formal_returns
+    
+#     global calls_vars_renamer
+#     formals_as_renamed = calls_vars_renamer.unique_formals(call_action, formals).values()
+    
+    global calls_vars_renamer
+    clauses = calls_vars_renamer.invert_formals_syms(clauses, call_action, formals)
+    
     symbols_can_be_modified = get_signature_symbols() + formals
     symbols_can_be_modified_two_vocab = symbols_can_be_modified + \
                                         [ivy_transrel.new(s) for s in symbols_can_be_modified]
@@ -403,7 +460,7 @@ def generate_summary_obligations_from_cex(procedure_summaries, ag):
             print transition_summary
             # TODO: use utils from ivy_infer_universal
             universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(transition_summary, model=None))
-            summary_locals_hidden = hide_callers_local_variables(universal_transition_summary, call_action)
+            summary_locals_hidden = transform_to_callee_summary_vocabulary(universal_transition_summary, call_action)
             
             summary_obligations.append((call_action.callee_name(), summary_locals_hidden))
         

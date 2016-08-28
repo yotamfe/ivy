@@ -62,6 +62,8 @@ class ActionContext(object):
         return domain.new_state(clauses)
     def should_hide_applied_call_formals(self):
         return True
+    def generate_unique_formals_renaming(self, call_action, formals, vocab):
+        return distinct_obj_renaming(formals, vocab)
 
 context = ActionContext()
 
@@ -730,6 +732,9 @@ class CallAction(Action):
     def should_hide_applied_formals(self):
         global context
         return context.should_hide_applied_call_formals()
+    def generate_unique_formals_renaming(self, formals, vocab):
+        global context
+        return context.generate_unique_formals_renaming(self, formals, vocab)
     def apply_actuals(self,domain,pvars,v):
         assert hasattr(v,'formal_params'), v
         actual_params = self.args[0].args
@@ -738,7 +743,8 @@ class CallAction(Action):
 #        formal_returns = [s.prefix('_') for s in v.formal_returns] # rename to prevent capture
 #        subst = dict(zip(v.formal_params+v.formal_returns, formal_params+formal_returns))
         vocab = list(symbols_asts(actual_params+actual_returns))
-        subst = distinct_obj_renaming(v.formal_params+v.formal_returns,vocab)
+        subst = self.generate_unique_formals_renaming(v.formal_params + v.formal_returns, 
+                                                 vocab)
 #        print "apply_actuals: subst: {}".format(subst)
         formal_params = [subst[s] for s in  v.formal_params] # rename to prevent capture
         formal_returns = [subst[s] for s in v.formal_returns] # rename to prevent capture
