@@ -111,15 +111,28 @@ def is_symbol_pre_in_vocab(sym, pre_vocab):
     assert ivy_transrel.is_new(sym)
     return ivy_transrel.new_of(sym) in pre_vocab
 
+def apply_dict_if_in_domain(s, subst):
+    if s not in subst.keys():
+        return s
+    else:
+        return subst[s]
+
 class ProcedureSummary(object):
-    def __init__(self, formal_params):
+    def __init__(self, formal_params, update_clauses=None, updated_syms=None):
         super(ProcedureSummary, self).__init__()
         
-        self._update_clauses = ivy_logic_utils.true_clauses()
+        self._formal_params = formal_params
+        
+        if update_clauses is None:
+            update_clauses = ivy_logic_utils.true_clauses()
+        self._update_clauses = update_clauses
         
         # TODO: document meaning
         self._summary_vocab = formal_params + get_signature_symbols()
-        self._updated_syms = self._summary_vocab
+        
+        if updated_syms is None:
+            updated_syms = self._summary_vocab
+        self._updated_syms = updated_syms
         
     def _update_strenghening_to_vocab_update(self, summary_strengthening):
         strenghening_clauses, updated_syms = summary_strengthening
@@ -169,6 +182,15 @@ class ProcedureSummary(object):
             return False
         return ivy_solver.clauses_imply(self.get_update_clauses(),
                                         other_summary.get_update_clauses())
+        
+    def substitute(self, subst):
+        renamed_formas = [apply_dict_if_in_domain(s, subst) for s in self._formal_params]
+        renamed_update_clauses = ivy_transrel.rename_clauses(self._update_clauses,
+                                                             subst)
+        renamed_updated_syms = [apply_dict_if_in_domain(s, subst) for s in self._updated_syms]
+        return ProcedureSummary(renamed_formas,
+                                renamed_update_clauses,
+                                renamed_updated_syms)
 
 class SummarizedAction(ivy_actions.Action):
     def __init__(self, name, original_action, procedure_summary):
@@ -192,6 +214,11 @@ class SummarizedAction(ivy_actions.Action):
     def clone(self,args):
         return SummarizedAction(self._name, self._original_action, 
                                 self._procedure_summary)
+        
+    def substitute(self, subst):
+        return SummarizedAction(self._name, 
+                                self._original_action.substitute(subst),
+                                self._procedure_summary.substitute(subst))
             
     # Override
     def action_update(self, domain, pvars):
@@ -292,9 +319,11 @@ def subprocedures_states_iter(ag, state_to_decompose):
         if isinstance(action, ivy_actions.CallAction):
             previous_state = analysis_graph.states[i-1]
             subprocedures_states.append((action, previous_state, state))
-        
-        rec_res = subprocedures_states_iter(ag, state)
-        subprocedures_states += rec_res
+            # don't continue recursively - decomposing SummarizedAction fails due to
+            # variable renaming
+        else:
+            rec_res = subprocedures_states_iter(ag, state)
+            subprocedures_states += rec_res
         
     return subprocedures_states
 

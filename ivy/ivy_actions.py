@@ -211,6 +211,8 @@ class Action(AST):
                     yield c
     def decompose(self,pre,post,fail=False):
         return [(pre,[self],post)]
+    def substitute(self, subst):
+        return substitute_constants_ast(self, subst)
 
 
 class AssumeAction(Action):
@@ -744,11 +746,11 @@ class CallAction(Action):
 #        subst = dict(zip(v.formal_params+v.formal_returns, formal_params+formal_returns))
         vocab = list(symbols_asts(actual_params+actual_returns))
         subst = self.generate_unique_formals_renaming(v.formal_params + v.formal_returns, 
-                                                 vocab)
+                                                      vocab)
 #        print "apply_actuals: subst: {}".format(subst)
         formal_params = [subst[s] for s in  v.formal_params] # rename to prevent capture
         formal_returns = [subst[s] for s in v.formal_returns] # rename to prevent capture
-        v = substitute_constants_ast(v,subst)
+        v = v.substitute(subst)
 #        print "formal_params: {}".format(formal_params)
 #        print "formal_returns: {}".format(formal_returns)
 #        print "substituted called action: {}".format(v)
