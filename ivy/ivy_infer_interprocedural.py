@@ -420,6 +420,18 @@ def get_two_vocab_transition_clauses_wrt_summary(ivy_action, procedure_summaries
 def two_vocab_respecting_non_updated_syms(two_vocab_clauses, updated_syms):
     return clauses_from_new_vocabulary_except_for(two_vocab_clauses, updated_syms)
 
+def prepare_update_with_axioms_and_obligation(updated_syms, two_vocab_update, 
+                                              two_vocab_obligation):
+    axioms = im.module.background_theory()
+    
+    obligation_wrt_sym_update = two_vocab_respecting_non_updated_syms(two_vocab_obligation,
+                                                                      updated_syms)
+    
+    update_with_axioms = ivy_transrel.conjoin(two_vocab_update, axioms)
+    
+    return (update_with_axioms, obligation_wrt_sym_update)
+
+# TODO: use prepare_update_with_axioms_and_obligation, also in transition checking
 def get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name, 
                                                procedure_summaries, two_vocab_obligation):    
     axioms = im.module.background_theory()
@@ -531,15 +543,23 @@ def generelize_summary_blocking(ivy_action, proc_name,
                                   axioms, NO_INTERPRETED)
     assert res != None
     two_vocab_inferred_fact = res[1]
-    return two_vocab_inferred_fact, updated_syms 
+    return two_vocab_inferred_fact, updated_syms
                                         
                 
 def infer_safe_summaries():
     exported_actions_names = [ed.exported() for ed in ivy_module.module.exports]
-    is_safe, frame_or_cex = ivy_infer.pdr(GUPDRElements(ivy_module.module.actions,
-                                      exported_actions_names))
+    gupdr_elements = GUPDRElements(ivy_module.module.actions, 
+                                  exported_actions_names)
+    
+    is_safe, frame_or_cex = ivy_infer.pdr(gupdr_elements)
     if not is_safe:
-        logger.info("Not safe!")
+        logger.info("Possibly not safe!")
+        abstract_cex_tree = frame_or_cex
+        cex = gupdr_elements.check_bounded_safety_by_cex(abstract_cex_tree)
+        if cex is None:
+            logger.info("Bounded model checking did not find a concrete cex")
+        else:
+            logger.info("Not safe! Found concrete cex")
     else:
         logger.info("Safe!")
         safe_frame = frame_or_cex
@@ -677,6 +697,50 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         return generelize_summary_blocking(self._actions_dict[predicate], predicate,
                                            summaries,
                                            proof_obligation)
+        
+    def _get_call_tree_summary(self, cex_node):
+        procedure_summaries = {}
+        
+        call_summary_by_name = {}
+        for child in cex_node.children:
+            call_summary_by_name[child.predicate] = self._get_call_tree_summary(child)
+        
+        for name, ivy_action in self._actions_dict.iteritems():
+            update_clauses = None
+            updated_vars = None
+            if name not in call_summary_by_name.keys():
+                update_clauses = ivy_logic_utils.false_clauses()
+                updated_vars = []
+            else:
+                (update_clauses, updated_vars) = call_summary_by_name[name]
+            
+            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action),
+                                                         update_clauses,
+                                                         updated_vars)
+            
+        parent_action = self._actions_dict[cex_node.predicate]
+        axioms = im.module.background_theory()
+            
+        with SummarizedActionsContext(procedure_summaries):
+            (parent_updated_vars, parent_update_clauses) = get_action_two_vocabulary_clauses(parent_action, axioms)
+            
+        return (parent_update_clauses, parent_updated_vars)
+        
+    def check_bounded_safety_by_cex(self, abstract_cex_tree):
+        update_two_vocab, updated_vars = self._get_call_tree_summary(abstract_cex_tree)
+        update_with_axioms, obligation_wrt_sym_update = prepare_update_with_axioms_and_obligation(updated_vars, update_two_vocab,
+                                                                                                  self._get_safety_property())
+        
+        clauses_to_check_sat = ivy_transrel.conjoin(update_with_axioms,
+                                                ivy_logic_utils.dual_clauses(obligation_wrt_sym_update))
+    
+        two_vocab_cex = ivy_solver.get_model_clauses(clauses_to_check_sat)
+        
+        if two_vocab_cex is None:
+            return None
+        
+        logger.debug("Got cex: %s", two_vocab_cex)
+        return two_vocab_cex
 
         
 def usage():
