@@ -638,7 +638,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             
         return procedure_summaries
     
-    # Return None if safe or proof obligation otherwise
+    # Return (None,None) if safe or (unsafe_predicate, proof obligation) otherwise
     def check_summary_safety(self, summaries):
         for name in self._exported_actions_names:
             logger.debug("Checking safety of proc %s", name)
@@ -654,7 +654,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         no_cme_next = clauses_to_new_vocabulary(no_cme)
         return ivy_transrel.conjoin(no_cme, no_cme_next) 
     
-    # Return None or a new proof obligation
+    # Return None or a list of new proof obligations
     def check_transformability_to_violation(self, predicate, summaries_by_symbol, 
                                             proof_obligation):
         procedure_name_to_check = predicate
