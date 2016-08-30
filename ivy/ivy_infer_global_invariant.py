@@ -138,10 +138,11 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses])
         bad_inv_model = inv_but_bad_clauses.get_model()
         if bad_inv_model is None:
-            return None
+            return (None, None)
        
         # TODO: refactor...
-        return [("inv", self._bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model))]
+        return ("inv",
+                [("inv", self._bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model))])
     
     def check_transformability_to_violation(self, predicate, summaries_by_symbol, proof_obligation):
         assert predicate == "inv"
@@ -204,11 +205,12 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
     
     
 def infer_safe_summaries():
-    res = ivy_infer.pdr(PdrCmeGlobalInvariant())
-    if res is None:
+    is_safe, frame_or_cex = ivy_infer.pdr(PdrCmeGlobalInvariant())
+    if not is_safe:
         print "Not safe!"
     else:
-        invariant = res["inv"].get_summary()
+        safe_frame = frame_or_cex
+        invariant = safe_frame["inv"].get_summary()
         print "Invariant:", invariant
         print "Invariant as a single formula:", invariant.to_single_clauses()
         assert check_any_exported_action_transition(invariant, invariant) is None

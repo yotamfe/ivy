@@ -536,17 +536,18 @@ def generelize_summary_blocking(ivy_action, proc_name,
                 
 def infer_safe_summaries():
     exported_actions_names = [ed.exported() for ed in ivy_module.module.exports]
-    res = ivy_infer.pdr(GUPDRElements(ivy_module.module.actions,
+    is_safe, frame_or_cex = ivy_infer.pdr(GUPDRElements(ivy_module.module.actions,
                                       exported_actions_names))
-    
-    if res is None:
+    if not is_safe:
         logger.info("Not safe!")
     else:
         logger.info("Safe!")
-        for name, summary in res.iteritems():
+        safe_frame = frame_or_cex
+        for name, summary in safe_frame.iteritems():
             logger.debug("Summary of procedure %s:", name)
             logger.debug("%s" % summary.get_update_clauses())
             logger.debug("")
+        
 
 #     procedure_summaries = {}
 #     actions_dict = ivy_module.module.actions
@@ -645,8 +646,8 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             proof_goals = check_procedure_transition(ivy_action, name, 
                                                      summaries, self._get_safety_property())
             if proof_goals is not None:
-                return proof_goals
-        return None
+                return (name, proof_goals)
+        return (None, None)
     
     def _get_safety_property(self):
         no_cme = ivy_logic_utils.to_clauses('~cme(I)')
