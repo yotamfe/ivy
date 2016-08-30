@@ -435,6 +435,10 @@ def get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name,
     logger.debug("two vocab obligation respecting updated syms: %s", two_vocab_obligation)
     
     update_with_axioms = ivy_transrel.conjoin(two_vocab_update, axioms)
+    # TODO: perhaps conjoin also the axioms in the post state?
+    # TODO: currently the cex can violate the axioms in the post state
+    # TODO: because functions are not known not to change symbols that appear in the axioms
+    # TODO: (because we currently don't compute an overapproximation of the set of updated variables)
     
     clauses_to_check_sat = ivy_transrel.conjoin(update_with_axioms,
                                                 ivy_logic_utils.dual_clauses(obligation_wrt_sym_update))
