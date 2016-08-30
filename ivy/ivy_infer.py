@@ -96,17 +96,6 @@ class PredicateSummary(object):
         return all(ivy_solver.clauses_list_imply_list(self.get_summary().get_conjuncts_clauses_list(),
                                                   other_summary.get_summary().get_conjuncts_clauses_list()))
         
-class SummaryProofObligation(object):
-    def __init__(self, predicate, obligation_clauses):
-        self._predicate = predicate
-        self._proof_obligation = obligation_clauses
-        
-    def predicate(self):
-        return self._predicate
-    
-    def obligation_clauses(self):
-        return self._proof_obligation
-
 class PdrFrame(object):
     def __init__(self, summaries_by_symbol):
         super(PdrFrame, self).__init__()
@@ -174,7 +163,8 @@ def backwards_prove_at_least_one_goal(frames, current_bound, summary_proof_oblig
             summary_proof_obligation_generalization = pdr_elements.generalize_intransformability(predicate,
                                                                                                  frames[i-1].get_summaries_by_symbol_dict(),
                                                                                                  summary_proof_obligation)
-            logger.debug("pdr strenghening frames up to bound %d with %s", current_bound, summary_proof_obligation_generalization)
+            logger.debug("pdr strenghtening frames for %s up to bound %d with %s", 
+                         predicate, current_bound, summary_proof_obligation_generalization)
             frames[i].strengthen(predicate, summary_proof_obligation_generalization)
            
         # successfully proved at least one proof goal
