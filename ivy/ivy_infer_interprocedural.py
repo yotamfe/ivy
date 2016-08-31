@@ -393,25 +393,25 @@ def concretize(clauses):
     # TODO: handle constants and function symbols?
     
     for s in get_signature_symbols():
-#         if not isinstance(s.sort, logic.FunctionSort):
-#             continue
-#         if not isinstance(s.sort.range, logic.BooleanSort):
-#             continue
-#         print s, type(s), s.sort, type(s.sort), type(s.sort.range)
-        
-        # TODO: remove
-        if s.name != 'cme':
+        if not isinstance(s.sort, logic.FunctionSort):
+            continue
+        if not isinstance(s.sort.range, logic.BooleanSort):
             continue
         
-        no_cme = ivy_logic_utils.to_clauses('~cme(I)')
-        no_cme_next = clauses_to_new_vocabulary(no_cme)
+        arg_vars = [logic.Var('V_%s_%d' % (s.name.upper(), i), s.sort.domain[i])
+                        for i in xrange(0, s.sort.arity)]
+        
+        relation_false = logic.Not(logic.Apply(s, *arg_vars))
+        relation_false_next = clauses_to_new_vocabulary(relation_false)
         
         if s not in clauses.symbols():
+            logging.debug("Adding %s to be false in the transition pre", s)
             clauses = ivy_transrel.conjoin(clauses,
-                                           no_cme)
+                                           relation_false)
         if ivy_transrel.new(s) not in clauses.symbols():
+            logging.debug("Adding %s to be false in the transition post", s)
             clauses = ivy_transrel.conjoin(clauses,
-                                           no_cme_next)
+                                           relation_false_next)
      
     return clauses
      
