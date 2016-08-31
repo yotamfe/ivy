@@ -603,7 +603,7 @@ def infer_safe_summaries():
         abstract_cex_tree = frame_or_cex
         cex = gupdr_elements.check_bounded_safety_by_cex(abstract_cex_tree)
         if cex is None:
-            logger.info("Bounded model checking did not find a concrete cex")
+            logger.info("Bounded model checking did not find a concrete cex; bug or no universal summary!")
         else:
             logger.info("Not safe! Found concrete cex")
     else:
