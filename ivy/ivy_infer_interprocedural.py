@@ -405,7 +405,7 @@ def concretize(clauses):
     # (for example, it is simply True) and so the countertrace won't "decide" which call performed
     # the change, and possibly none of them will be blocked (because if cme(I) is still false then
     # the transition is indeed possible and can't be blocked).
-    # TODO: handle constants and function symbols?
+    # TODO: handle function symbols?
     
     for s in get_signature_symbols():
         if not isinstance(s.sort, logic.FunctionSort):
