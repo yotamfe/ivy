@@ -386,11 +386,11 @@ def concretize_symbol_pre_and_post(clauses, s, concretization_clauses):
     concretization_clauses_next = clauses_to_new_vocabulary(concretization_clauses)
     
     if s not in clauses.symbols():
-            logging.debug("Adding %s to be false in the transition pre", s)
+            logging.debug("Concretizing %s in the transition pre", s)
             clauses = ivy_transrel.conjoin(clauses,
                                            concretization_clauses)
     if ivy_transrel.new(s) not in clauses.symbols():
-        logging.debug("Adding %s to be false in the transition post", s)
+        logging.debug("Concretizing %s in the transition post", s)
         clauses = ivy_transrel.conjoin(clauses,
                                        concretization_clauses_next)
         
