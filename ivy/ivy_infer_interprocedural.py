@@ -295,12 +295,13 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
     def generate_unique_formals_renaming(self, call_action, formals, vocab):
         global calls_vars_renamer
         return calls_vars_renamer.unique_formals(call_action, formals)
-    
         
-def subprocedures_states_iter(ag, state_to_decompose):
+def get_decomposed_cex_if_exists(ag, state_to_decompose, decomposition_must_exist=False):
     analysis_graph = ag.decompose_state_partially_repsect_context(state_to_decompose)
+    if not decomposition_must_exist and analysis_graph is None:
+        return None
     assert analysis_graph is not None
-    
+            
     subprocedures_states = []
     
     # Note: the first state is the initial state, and it is not associated with any action
@@ -320,11 +321,12 @@ def subprocedures_states_iter(ag, state_to_decompose):
         
         if isinstance(action, ivy_actions.CallAction):
             previous_state = analysis_graph.states[i-1]
+            
             subprocedures_states.append((action, previous_state, state))
             # don't continue recursively - decomposing SummarizedAction fails due to
             # variable renaming
         else:
-            rec_res = subprocedures_states_iter(ag, state)
+            rec_res = get_decomposed_cex_if_exists(ag, state, decomposition_must_exist=True)
             subprocedures_states += rec_res
         
     return subprocedures_states
@@ -386,9 +388,9 @@ def concretize_symbol_pre_and_post(clauses, s, concretization_clauses):
     concretization_clauses_next = clauses_to_new_vocabulary(concretization_clauses)
     
     if s not in clauses.symbols():
-            logging.debug("Concretizing %s in the transition pre", s)
-            clauses = ivy_transrel.conjoin(clauses,
-                                           concretization_clauses)
+        logging.debug("Concretizing %s in the transition pre", s)
+        clauses = ivy_transrel.conjoin(clauses,
+                                       concretization_clauses)
     if ivy_transrel.new(s) not in clauses.symbols():
         logging.debug("Concretizing %s in the transition post", s)
         clauses = ivy_transrel.conjoin(clauses,
@@ -475,42 +477,7 @@ def prepare_update_with_axioms_and_obligation(updated_syms, two_vocab_update,
     
     return (update_with_axioms, obligation_wrt_sym_update)
 
-# TODO: use prepare_update_with_axioms_and_obligation, also in transition checking
-def get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name, 
-                                               procedure_summaries, two_vocab_obligation):    
-    axioms = im.module.background_theory()
-    
-    updated_syms, two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
-                                                                                  procedure_summaries, 
-                                                                                  axioms)
-    logger.debug("syms updated by the procedure: %s", updated_syms)
-    
-    logger.debug("two vocab obligation: %s", two_vocab_obligation)
-    obligation_wrt_sym_update = two_vocab_respecting_non_updated_syms(two_vocab_obligation,
-                                                                      updated_syms)
-    logger.debug("two vocab obligation respecting updated syms: %s", two_vocab_obligation)
-    
-    update_with_axioms = ivy_transrel.conjoin(two_vocab_update, axioms)
-    # TODO: perhaps conjoin also the axioms in the post state?
-    # TODO: currently the cex can violate the axioms in the post state
-    # TODO: because functions are not known not to change symbols that appear in the axioms
-    # TODO: (because we currently don't compute an overapproximation of the set of updated variables)
-    
-    clauses_to_check_sat = ivy_transrel.conjoin(update_with_axioms,
-                                                ivy_logic_utils.dual_clauses(obligation_wrt_sym_update))
-    
-    cex_model = ivy_solver.get_model_clauses(clauses_to_check_sat)
-    if cex_model is None:
-        return None
-
-    clauses_cex = ivy_solver.clauses_model_to_clauses(clauses_to_check_sat,
-                                                      model=cex_model)
-    assert clauses_cex != None    
-    return clauses_cex
-
-def separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses):
-    updated_syms, _, _ = update_from_action(ivy_action)
-
+def separate_two_vocab_clauses_to_pre_and_post_states(updated_syms, two_vocab_cex_clauses):
     hide_in_pre_syms = [s for s in two_vocab_cex_clauses.symbols() 
                             if ivy_transrel.is_new(s)]
     hide_in_post_syms   = [s for s in two_vocab_cex_clauses.symbols() 
@@ -525,8 +492,9 @@ def separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses):
     return (ivy_interp.State(value=ivy_transrel.pure_state(pre_clauses)),
             ivy_interp.State(value=ivy_transrel.pure_state(post_clauses)))
     
-def ag_from_two_vocab_cex(action_name, ivy_action, two_vocab_cex_clauses):
-    pre_state, post_state = separate_two_vocab_cex(ivy_action, two_vocab_cex_clauses)
+def ag_from_two_vocab_clauses(action_name, updated_syms, two_vocab_cex_clauses):
+    pre_state, post_state = separate_two_vocab_clauses_to_pre_and_post_states(updated_syms,
+                                                                              two_vocab_cex_clauses)
     
     ag = ivy_art.AnalysisGraph()
     # based on AnalysisGraph.execute
@@ -534,7 +502,7 @@ def ag_from_two_vocab_cex(action_name, ivy_action, two_vocab_cex_clauses):
     ag.add(post_state, ivy_interp.action_app(action_name, pre_state))
     return ag
     
-def generate_summary_obligations_from_cex(procedure_summaries, ag):
+def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
     # TODO: this actually assumes that the action consists of at least something more than the
     # TODO: call, otherwise the result is still [] although we have what to refine
     # FIXME: make sure that such procedures are inlined or treated carefully
@@ -542,7 +510,13 @@ def generate_summary_obligations_from_cex(procedure_summaries, ag):
     
     with SummarizedActionsContext(procedure_summaries):
         assert len(ag.states) == 2
-        subprocedures_transitions = subprocedures_states_iter(ag, ag.states[-1])
+        # Note: the ag here doesn't incorporate a cex to decompose but the abstract
+        # pre and post clauses, finding a counterexample is performed in the same
+        # time as the decomposition
+        subprocedures_transitions = get_decomposed_cex_if_exists(ag, ag.states[-1])
+        
+        if subprocedures_transitions is None:
+            return None
         
         for call_action, before_state, after_state in subprocedures_transitions:
             logging.debug("Transition states: before: %s", before_state)
@@ -560,15 +534,24 @@ def generate_summary_obligations_from_cex(procedure_summaries, ag):
 def check_procedure_transition(ivy_action, proc_name,
                                procedure_summaries, two_vocab_obligation):
     with SummarizedActionsContext(procedure_summaries):
-        two_vocab_cex = get_transition_cex_to_obligation_two_vocab(ivy_action, proc_name,
-                                         procedure_summaries, two_vocab_obligation)
-        if two_vocab_cex is None:
-            return None
-        logger.debug("Got cex: %s", two_vocab_cex)
+        axioms = im.module.background_theory()
+        # TODO: should not need to pass the axioms here, we conjoin with them later
+        updated_syms, two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
+                                                                                      procedure_summaries, 
+                                                                                      axioms)
+        logger.debug("syms updated by the procedure: %s", updated_syms)
+        
+        update_with_axioms, obligation_wrt_sym_update = prepare_update_with_axioms_and_obligation(updated_syms, two_vocab_update, 
+                                                                                                  two_vocab_obligation)
+        
+        two_vocab_transition_to_violation = ivy_transrel.conjoin(update_with_axioms,
+                                                                 ivy_logic_utils.dual_clauses(obligation_wrt_sym_update))
     
-        ag = ag_from_two_vocab_cex(proc_name, ivy_action, two_vocab_cex)
-        summary_obligations = generate_summary_obligations_from_cex(procedure_summaries, ag)
-        assert summary_obligations != None
+        ag = ag_from_two_vocab_clauses(proc_name, updated_syms, two_vocab_transition_to_violation)
+        summary_obligations = generate_summary_obligations_if_exists_cex(procedure_summaries, ag)
+        if summary_obligations is None:
+            # transition to violation ain't possible
+            return None
         return summary_obligations
 
 def generelize_summary_blocking(ivy_action, proc_name, 
