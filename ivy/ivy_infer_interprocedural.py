@@ -79,6 +79,7 @@ import ivy_logic_utils
 import ivy_solver
 import ivy_infer
 import logic
+import ivy_logic
 
 import sys
 import logging
@@ -381,6 +382,20 @@ def transform_to_callee_summary_vocabulary(clauses, call_action):
                                                 and not s.is_numeral())
     # TODO: MUST TEST this with global variables, local variables, and nested calls
     
+def concretize_symbol_pre_and_post(clauses, s, concretization_clauses):
+    concretization_clauses_next = clauses_to_new_vocabulary(concretization_clauses)
+    
+    if s not in clauses.symbols():
+            logging.debug("Adding %s to be false in the transition pre", s)
+            clauses = ivy_transrel.conjoin(clauses,
+                                           concretization_clauses)
+    if ivy_transrel.new(s) not in clauses.symbols():
+        logging.debug("Adding %s to be false in the transition post", s)
+        clauses = ivy_transrel.conjoin(clauses,
+                                       concretization_clauses_next)
+        
+    return clauses
+    
 def concretize(clauses):
     # make sure that the state is concrete on all relations, so we have
     # a completely concrete countertrace
@@ -394,7 +409,11 @@ def concretize(clauses):
     
     for s in get_signature_symbols():
         if not isinstance(s.sort, logic.FunctionSort):
+            eq_to_num = logic.Eq(s, ivy_logic.Symbol("0", s.sort))
+            clauses = concretize_symbol_pre_and_post(clauses, s, 
+                                                 eq_to_num)
             continue
+        
         if not isinstance(s.sort.range, logic.BooleanSort):
             continue
         
@@ -402,16 +421,10 @@ def concretize(clauses):
                         for i in xrange(0, s.sort.arity)]
         
         relation_false = logic.Not(logic.Apply(s, *arg_vars))
-        relation_false_next = clauses_to_new_vocabulary(relation_false)
+        clauses = concretize_symbol_pre_and_post(clauses, s, 
+                                                 relation_false)
         
-        if s not in clauses.symbols():
-            logging.debug("Adding %s to be false in the transition pre", s)
-            clauses = ivy_transrel.conjoin(clauses,
-                                           relation_false)
-        if ivy_transrel.new(s) not in clauses.symbols():
-            logging.debug("Adding %s to be false in the transition post", s)
-            clauses = ivy_transrel.conjoin(clauses,
-                                           relation_false_next)
+        
      
     return clauses
      
