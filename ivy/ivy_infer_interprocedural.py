@@ -78,6 +78,7 @@ import ivy_infer_universal
 import ivy_logic_utils
 import ivy_solver
 import ivy_infer
+import logic
 
 import sys
 import logging
@@ -379,18 +380,48 @@ def transform_to_callee_summary_vocabulary(clauses, call_action):
     return hide_symbol_if(clauses, lambda s: s not in symbols_can_be_modified_two_vocab 
                                                 and not s.is_numeral())
     # TODO: MUST TEST this with global variables, local variables, and nested calls
+    
+def concretize(clauses):
+    # make sure that the state is concrete on all relations, so we have
+    # a completely concrete countertrace
+    # Ivy hides some of the model facts if they deem irrelevant (probably on get_small_model), 
+    # but on decomposition this may be a problem: for example, cme(I) might become true
+    # either after the first or second call but because the call summary doesn't mention cme
+    # (for example, it is simply True) and so the countertrace won't "decide" which call performed
+    # the change, and possibly none of them will be blocked (because if cme(I) is still false then
+    # the transition is indeed possible and can't be blocked).
+    # TODO: handle constants and function symbols?
+    
+    for s in get_signature_symbols():
+#         if not isinstance(s.sort, logic.FunctionSort):
+#             continue
+#         if not isinstance(s.sort.range, logic.BooleanSort):
+#             continue
+#         print s, type(s), s.sort, type(s.sort), type(s.sort.range)
+        
+        # TODO: remove
+        if s.name != 'cme':
+            continue
+        
+        no_cme = ivy_logic_utils.to_clauses('~cme(I)')
+        no_cme_next = clauses_to_new_vocabulary(no_cme)
+        
+        if s not in clauses.symbols():
+            clauses = ivy_transrel.conjoin(clauses,
+                                           no_cme)
+        if ivy_transrel.new(s) not in clauses.symbols():
+            clauses = ivy_transrel.conjoin(clauses,
+                                           no_cme_next)
      
-def transition_states_to_summary(before_state, after_state):
-    # TODO: translate formal parameters back before this call
-    # TODO: because get_updated_vars() uses them and not the uniquely renamed ones
-    # TODO: perhaps rename the rest and keep the names of the formal params?...
+    return clauses
+     
+def transition_states_to_concrete_transition_clauses(before_state, after_state):
+    after_clauses_new_vocab = clauses_to_new_vocabulary(after_state.clauses) 
     
-#     print call_action, before_state, after_state
+    transition_clauses = ivy_transrel.conjoin(before_state.clauses,
+                                after_clauses_new_vocab)
     
-    after_clauses_locals_hidden_new_vocab = clauses_to_new_vocabulary(after_state.clauses) 
-    
-    return ivy_transrel.conjoin(before_state.clauses,
-                                after_clauses_locals_hidden_new_vocab)
+    return concretize(transition_clauses)
     
 def update_from_action(ivy_action):
     # TODO: int_update? update? rename our function name?
@@ -501,8 +532,10 @@ def generate_summary_obligations_from_cex(procedure_summaries, ag):
         subprocedures_transitions = subprocedures_states_iter(ag, ag.states[-1])
         
         for call_action, before_state, after_state in subprocedures_transitions:
-            transition_summary = transition_states_to_summary(before_state, after_state)
-            print transition_summary
+            logging.debug("Transition states: before: %s", before_state)
+            logging.debug("Transition states: after: %s", after_state)
+            transition_summary = transition_states_to_concrete_transition_clauses(before_state, after_state)
+            logging.debug("Transition summary: %s", transition_summary)
             # TODO: use utils from ivy_infer_universal
             universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(transition_summary, model=None))
             summary_locals_hidden = transform_to_callee_summary_vocabulary(universal_transition_summary, call_action)
