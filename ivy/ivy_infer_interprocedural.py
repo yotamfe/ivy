@@ -255,7 +255,7 @@ class CallsVarRenamer(object):
             
             res[s] = unique_sym
             
-            self._renaming[s] = unique_sym
+            self._renaming[(call_action, s)] = unique_sym
             
         return res 
     
@@ -264,7 +264,7 @@ class CallsVarRenamer(object):
         
         inverse_formals_map = {}
         for s in formals:
-            renamed_s = self._renaming[s]
+            renamed_s = self._renaming[(call_action, s)]
             inverse_formals_map[renamed_s] = s
             inverse_formals_map[ivy_transrel.new(renamed_s)] = ivy_transrel.new(s)
             
