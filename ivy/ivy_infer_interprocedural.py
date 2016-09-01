@@ -249,13 +249,19 @@ class CallsVarRenamer(object):
             
         res = {}
         for s in formals:
-            call_id = self._calls_to_ids[call_action]
-            globally_unique_renamer = lambda name: "fc%d_%s" % (call_id, name)
-            unique_sym = ivy_transrel.rename(s, globally_unique_renamer)
+            if (call_action, s) in self._renaming.keys():
+                # this might happen if some argument is both in and out
+                logger.debug("Dup formal sym renaming: %s, %s, %s" % (call_action, call_action.callee_name(), s))
+                mapped_symbol = self._renaming[(call_action, s)]
+            else:
+                call_id = self._calls_to_ids[call_action]
+                globally_unique_renamer = lambda name: "fc%d_%s" % (call_id, name)
+                unique_sym = ivy_transrel.rename(s, globally_unique_renamer)
+                mapped_symbol = unique_sym
             
-            res[s] = unique_sym
+            res[s] = mapped_symbol
             
-            self._renaming[(call_action, s)] = unique_sym
+            self._renaming[(call_action, s)] = mapped_symbol
             
         return res 
     
