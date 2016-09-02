@@ -372,13 +372,16 @@ def hide_symbol_if(clauses, should_hide_pred):
     syms_to_hide = [s for s in clauses.symbols() if should_hide_pred(s)]
     return ivy_transrel.hide_clauses(syms_to_hide, clauses)
 
-def rename_not_to_mention(clauses, syms_to_avoid):
+def rename_not_to_mention_maintain_time(clauses, syms_to_avoid):
     import ivy_utils
-    unique_renamer = ivy_utils.UniqueRenamer('colfre', clauses.symbols())
+    unique_renamer = ivy_utils.UniqueRenamer('', clauses.symbols())
     rename_map = {}
     
     for s in syms_to_avoid:
-        rename_map[s] = ivy_transrel.rename(s, unique_renamer)
+        assert not ivy_transrel.is_new(s)
+        renamed_name = ivy_transrel.rename(s, unique_renamer)
+        rename_map[s] = renamed_name
+        rename_map[ivy_transrel.new(s)] = ivy_transrel.new(renamed_name)
         assert s not in clauses.symbols() or rename_map[s] != s, s
         
     res = ivy_logic_utils.rename_clauses(clauses, rename_map)
@@ -391,7 +394,7 @@ def transform_to_callee_summary_vocabulary(clauses, call_action):
     global calls_vars_renamer
     invert_formals_map = calls_vars_renamer.formal_syms_inversion_map(call_action, formals)
     # avoiding collisions on our renaming of the formals back to their original form
-    clauses = rename_not_to_mention(clauses, invert_formals_map.values())
+    clauses = rename_not_to_mention_maintain_time(clauses, formals)
     clauses = ivy_transrel.rename_clauses(clauses, invert_formals_map)
     
     symbols_can_be_modified = get_signature_symbols() + formals
