@@ -265,7 +265,7 @@ class CallsVarRenamer(object):
             
         return res 
     
-    def invert_formals_syms(self, clauses, call_action, formals):
+    def formal_syms_inversion_map(self, call_action, formals):
         assert call_action in self._calls_to_ids.keys()
         
         inverse_formals_map = {}
@@ -274,7 +274,7 @@ class CallsVarRenamer(object):
             inverse_formals_map[renamed_s] = s
             inverse_formals_map[ivy_transrel.new(renamed_s)] = ivy_transrel.new(s)
             
-        return ivy_transrel.rename_clauses(clauses, inverse_formals_map)
+        return inverse_formals_map
         
         
 calls_vars_renamer = CallsVarRenamer()
@@ -372,15 +372,27 @@ def hide_symbol_if(clauses, should_hide_pred):
     syms_to_hide = [s for s in clauses.symbols() if should_hide_pred(s)]
     return ivy_transrel.hide_clauses(syms_to_hide, clauses)
 
+def rename_not_to_mention(clauses, syms_to_avoid):
+    import ivy_utils
+    unique_renamer = ivy_utils.UniqueRenamer('colfre', clauses.symbols())
+    rename_map = {}
+    
+    for s in syms_to_avoid:
+        rename_map[s] = ivy_transrel.rename(s, unique_renamer)
+        assert s not in clauses.symbols() or rename_map[s] != s, s
+        
+    res = ivy_logic_utils.rename_clauses(clauses, rename_map)
+    return res
+
 def transform_to_callee_summary_vocabulary(clauses, call_action):
     callee_action = call_action.get_callee()
     formals = callee_action.formal_params + callee_action.formal_returns
     
-#     global calls_vars_renamer
-#     formals_as_renamed = calls_vars_renamer.unique_formals(call_action, formals).values()
-    
     global calls_vars_renamer
-    clauses = calls_vars_renamer.invert_formals_syms(clauses, call_action, formals)
+    invert_formals_map = calls_vars_renamer.formal_syms_inversion_map(call_action, formals)
+    # avoiding collisions on our renaming of the formals back to their original form
+    clauses = rename_not_to_mention(clauses, invert_formals_map.values())
+    clauses = ivy_transrel.rename_clauses(clauses, invert_formals_map)
     
     symbols_can_be_modified = get_signature_symbols() + formals
     symbols_can_be_modified_two_vocab = symbols_can_be_modified + \
