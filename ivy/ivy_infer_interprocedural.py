@@ -387,22 +387,37 @@ def rename_not_to_mention_maintain_time(clauses, syms_to_avoid):
     res = ivy_logic_utils.rename_clauses(clauses, rename_map)
     return res
 
-def transform_to_callee_summary_vocabulary(clauses, call_action):
+
+def hide_symbols_not_in_summary_vocab(two_vocab_clauses, call_action):
+    # TODO: use procedure_summary._summary_vocab
     callee_action = call_action.get_callee()
     formals = callee_action.formal_params + callee_action.formal_returns
     
     global calls_vars_renamer
     invert_formals_map = calls_vars_renamer.formal_syms_inversion_map(call_action, formals)
+    
     # avoiding collisions on our renaming of the formals back to their original form
-    clauses = rename_not_to_mention_maintain_time(clauses, formals)
-    clauses = ivy_transrel.rename_clauses(clauses, invert_formals_map)
+    two_vocab_clauses = rename_not_to_mention_maintain_time(two_vocab_clauses, formals)
+    
+    two_vocab_clauses = ivy_transrel.rename_clauses(two_vocab_clauses, invert_formals_map)
     
     symbols_can_be_modified = get_signature_symbols() + formals
-    symbols_can_be_modified_two_vocab = symbols_can_be_modified + \
-                                        [ivy_transrel.new(s) for s in symbols_can_be_modified]
+    symbols_can_be_modified_two_vocab = symbols_can_be_modified + [ivy_transrel.new(s) for s in symbols_can_be_modified]
     
-    return hide_symbol_if(clauses, lambda s: s not in symbols_can_be_modified_two_vocab 
-                                                and not s.is_numeral())
+    clauses_in_vocab = hide_symbol_if(two_vocab_clauses, 
+                                      lambda s:s not in symbols_can_be_modified_two_vocab and 
+                                            not s.is_numeral())
+    return clauses_in_vocab
+
+
+def clauses_respecting_updated_syms(updated_syms, clauses_in_vocab):
+    return ivy_logic_utils.rename_clauses(clauses_in_vocab, dict((ivy_transrel.new(x), x) 
+                                                                 for x in clauses_in_vocab.symbols() 
+                                                                 if x not in updated_syms))
+
+def transform_to_callee_summary_vocabulary(two_vocab_clauses, call_action, updated_syms):
+    clauses_in_vocab = hide_symbols_not_in_summary_vocab(two_vocab_clauses, call_action)
+    return clauses_respecting_updated_syms(updated_syms, clauses_in_vocab)
     # TODO: MUST TEST this with global variables, local variables, and nested calls
     
 def concretize_symbol_pre_and_post(clauses, s, concretization_clauses, updated_syms):
@@ -454,13 +469,13 @@ def concretize(clauses, updated_syms, vocab_to_concretize):
      
     return clauses
      
-def transition_states_to_concrete_transition_clauses(before_state, after_state):
+def transition_states_to_transition_clauses(before_state, after_state, 
+                                                     updated_syms):
     after_clauses_new_vocab = clauses_to_new_vocabulary(after_state.clauses) 
     
     transition_clauses = ivy_transrel.conjoin(before_state.clauses,
-                                after_clauses_new_vocab)
+                                              after_clauses_new_vocab)    
     
-    return concretize(transition_clauses)
     
 def update_from_action(ivy_action):
     # TODO: int_update? update? rename our function name?
@@ -543,15 +558,27 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
             return None
         
         for call_action, before_state, after_state in subprocedures_transitions:
-            logging.debug("Transition states: before: %s", before_state)
-            logging.debug("Transition states: after: %s", after_state)
-            transition_summary = transition_states_to_concrete_transition_clauses(before_state, after_state)
-            logging.debug("Transition summary: %s", transition_summary)
+            symbols_updated_in_the_transition = procedure_summaries[call_action.callee_name()].get_updated_vars()
+            
+            
+            transition_summary = transition_states_to_transition_clauses(before_state, after_state,
+                                                                                  symbols_updated_in_the_transition)
+            logger.debug("Transition summary: %s", transition_summary)
+            summary_in_vocab = transform_to_callee_summary_vocabulary(transition_summary, 
+                                                                           call_action,
+                                                                           symbols_updated_in_the_transition)
+            
+            concrete_summary = concretize(summary_in_vocab, symbols_updated_in_the_transition,
+                                          get_signature_symbols())
+            
             # TODO: use utils from ivy_infer_universal
-            universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(transition_summary, model=None))
-            summary_locals_hidden = transform_to_callee_summary_vocabulary(universal_transition_summary, call_action)
+            universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(concrete_summary, 
+                                                                                                            model=None))
+            
+            res = universal_transition_summary
             
             summary_obligations.append((call_action.callee_name(), summary_locals_hidden))
+            summary_obligations.append((call_action.callee_name(), res))
         
     return summary_obligations
     
