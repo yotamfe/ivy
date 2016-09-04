@@ -405,21 +405,22 @@ def transform_to_callee_summary_vocabulary(clauses, call_action):
                                                 and not s.is_numeral())
     # TODO: MUST TEST this with global variables, local variables, and nested calls
     
-def concretize_symbol_pre_and_post(clauses, s, concretization_clauses):
+def concretize_symbol_pre_and_post(clauses, s, concretization_clauses, updated_syms):
     concretization_clauses_next = clauses_to_new_vocabulary(concretization_clauses)
     
     if s not in clauses.symbols():
-        logging.debug("Concretizing %s in the transition pre", s)
+        logger.debug("Concretizing %s in the transition pre", s)
         clauses = ivy_transrel.conjoin(clauses,
                                        concretization_clauses)
-    if ivy_transrel.new(s) not in clauses.symbols():
-        logging.debug("Concretizing %s in the transition post", s)
+    
+    if s in updated_syms and ivy_transrel.new(s) not in clauses.symbols():
+        logger.debug("Concretizing %s in the transition post", s)
         clauses = ivy_transrel.conjoin(clauses,
                                        concretization_clauses_next)
         
     return clauses
     
-def concretize(clauses):
+def concretize(clauses, updated_syms, vocab_to_concretize):
     # make sure that the state is concrete on all relations, so we have
     # a completely concrete countertrace
     # Ivy hides some of the model facts if they deem irrelevant (probably on get_small_model), 
@@ -427,27 +428,29 @@ def concretize(clauses):
     # either after the first or second call but because the call summary doesn't mention cme
     # (for example, it is simply True) and so the countertrace won't "decide" which call performed
     # the change, and possibly none of them will be blocked (because if cme(I) is still false then
-    # the transition is indeed possible and can't be blocked).
-    # TODO: handle function symbols?
-    
-    for s in get_signature_symbols():
+    # the transition is indeed possible and can't be blocked).    
+    for s in vocab_to_concretize:
+        assert not ivy_transrel.is_new(s)
+        
         if not isinstance(s.sort, logic.FunctionSort):
             eq_to_num = logic.Eq(s, ivy_logic.Symbol("0", s.sort))
             clauses = concretize_symbol_pre_and_post(clauses, s, 
-                                                 eq_to_num)
-            continue
-        
-        if not isinstance(s.sort.range, logic.BooleanSort):
+                                                     eq_to_num,
+                                                     updated_syms)
             continue
         
         arg_vars = [logic.Var('V_%s_%d' % (s.name.upper(), i), s.sort.domain[i])
                         for i in xrange(0, s.sort.arity)]
         
-        relation_false = logic.Not(logic.Apply(s, *arg_vars))
+        if isinstance(s.sort.range, logic.BooleanSort):
+            concretization_clauses = logic.Not(logic.Apply(s, *arg_vars))
+        else:
+            concretization_clauses = logic.Eq(logic.Apply(s, *arg_vars),
+                                              ivy_logic.Symbol("0", s.sort.range)) 
+     
         clauses = concretize_symbol_pre_and_post(clauses, s, 
-                                                 relation_false)
-        
-        
+                                                 concretization_clauses,
+                                                 updated_syms)
      
     return clauses
      
