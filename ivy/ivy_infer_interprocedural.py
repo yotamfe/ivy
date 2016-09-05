@@ -410,10 +410,14 @@ def hide_symbols_not_in_summary_vocab(two_vocab_clauses, call_action):
     return clauses_in_vocab
 
 
-def clauses_respecting_updated_syms(updated_syms, clauses_in_vocab):
-    return ivy_logic_utils.rename_clauses(clauses_in_vocab, dict((ivy_transrel.new(x), x) 
-                                                                 for x in clauses_in_vocab.symbols() 
-                                                                 if x not in updated_syms))
+def clauses_respecting_updated_syms(updated_syms, clauses):
+    renamer = {}
+    for s in clauses.symbols():
+        if not ivy_transrel.is_new(s):
+            continue
+        if ivy_transrel.new_of(s) not in updated_syms:
+            renamer[s] = ivy_transrel.new_of(s)
+    return ivy_logic_utils.rename_clauses(clauses, renamer)
 
 def transform_to_callee_summary_vocabulary(two_vocab_clauses, call_action, updated_syms):
     clauses_in_vocab = hide_symbols_not_in_summary_vocab(two_vocab_clauses, call_action)
