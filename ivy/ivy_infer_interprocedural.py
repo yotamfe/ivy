@@ -185,10 +185,20 @@ class ProcedureSummary(object):
         return ivy_solver.clauses_imply(self.get_update_clauses(),
                                         other_summary.get_update_clauses())
         
-    def substitute(self, subst):
-        renamed_formas = [apply_dict_if_in_domain(s, subst) for s in self._formal_params]
+    def substitute_formals(self, subst):
+        assert set(subst.keys()) == set(self._formal_params)
+        assert set(subst.values()) & set(self._update_clauses.symbols()) == set()
+        
+        renamed_formas = [subst[s] for s in self._formal_params]
+        
+        two_vocab_subst = {}
+        for s, t in subst.iteritems():
+            assert not ivy_transrel.is_new(s)
+            two_vocab_subst[s] = t
+            two_vocab_subst[ivy_transrel.new(s)] = ivy_transrel.new(t)
         renamed_update_clauses = ivy_transrel.rename_clauses(self._update_clauses,
-                                                             subst)
+                                                             two_vocab_subst)
+        
         renamed_updated_syms = [apply_dict_if_in_domain(s, subst) for s in self._updated_syms]
         return ProcedureSummary(renamed_formas,
                                 renamed_update_clauses,
@@ -220,7 +230,7 @@ class SummarizedAction(ivy_actions.Action):
     def substitute(self, subst):
         return SummarizedAction(self._name, 
                                 self._original_action.substitute(subst),
-                                self._procedure_summary.substitute(subst))
+                                self._procedure_summary.substitute_formals(subst))
             
     # Override
     def action_update(self, domain, pvars):
