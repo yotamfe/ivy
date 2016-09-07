@@ -488,7 +488,9 @@ def transition_states_to_transition_clauses(before_state, after_state,
     after_clauses_new_vocab = clauses_to_new_vocabulary(after_state.clauses) 
     
     transition_clauses = ivy_transrel.conjoin(before_state.clauses,
-                                              after_clauses_new_vocab)    
+                                              after_clauses_new_vocab)
+    
+    return transition_clauses    
     
     
 def update_from_action(ivy_action):
@@ -591,7 +593,6 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
             
             res = universal_transition_summary
             
-            summary_obligations.append((call_action.callee_name(), summary_locals_hidden))
             summary_obligations.append((call_action.callee_name(), res))
         
     return summary_obligations
