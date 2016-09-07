@@ -233,7 +233,7 @@ class SummarizedAction(ivy_actions.Action):
                                 self._procedure_summary.substitute_formals(subst))
             
     # Override
-    def action_update(self, domain, pvars):
+    def int_update(self, domain, in_scope):
         updated  = self._procedure_summary.get_updated_vars()
         clauses  = self._procedure_summary.get_update_clauses()
         pre      = self._procedure_summary.get_precondition()
