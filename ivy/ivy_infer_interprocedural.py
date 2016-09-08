@@ -604,10 +604,6 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
             transition_summary = ivy_transrel.conjoin(before_clauses_callee_vocab, 
                                                       clauses_to_new_vocabulary(after_clauses_callee_vocab))
             
-            clauses_renamed_lst, call_action_renamed = rename_callee_formals_back([transition_summary],
-                                                                                  call_action)
-            transition_summary = clauses_renamed_lst[0]
-            
             logger.debug("Transition summary: %s", transition_summary)
             summary_in_vocab = transform_to_callee_summary_vocabulary(transition_summary, 
                                                                        call_action,
