@@ -119,16 +119,20 @@ def apply_dict_if_in_domain(s, subst):
         return s
     else:
         return subst[s]
+    
+
+def symbols_in_clauses_lst(clauses_lst):
+    return set().union(*[clauses.symbols() for clauses in clauses_lst])
 
 class ProcedureSummary(object):
-    def __init__(self, formal_params, update_clauses=None, updated_syms=None):
+    def __init__(self, formal_params, update_clauses_lst=None, updated_syms=None):
         super(ProcedureSummary, self).__init__()
         
         self._formal_params = formal_params
         
-        if update_clauses is None:
-            update_clauses = ivy_logic_utils.true_clauses()
-        self._update_clauses = update_clauses
+        if update_clauses_lst is None:
+            update_clauses_lst = [ivy_logic_utils.true_clauses()]
+        self._update_clauses = ivy_infer.ClausesClauses(update_clauses_lst)
         
         # TODO: document meaning
         self._summary_vocab = formal_params + get_signature_symbols()
@@ -158,16 +162,17 @@ class ProcedureSummary(object):
     
 
     def _modify_clauses_according_to_updated_syms(self):
-        self._update_clauses = two_vocab_respecting_non_updated_syms(self._update_clauses, 
-                                                                     self._updated_syms)
+        self._update_clauses = ivy_infer.ClausesClauses([two_vocab_respecting_non_updated_syms(clauses, 
+                                                                                               self._updated_syms)
+                                                        for clauses in self._update_clauses.get_conjuncts_clauses_list()])
 
     def strengthen(self, summary_strengthening):
         # TODO: instead of that, take the update clauses when generalizing WITH hiding applied formals
         strengthening_in_vocab = self._update_strenghening_to_vocab_update(summary_strengthening)
         updated_syms, strengthening_clauses = strengthening_in_vocab
         
-        self._update_clauses = ivy_transrel.conjoin(self._update_clauses, 
-                                                    strengthening_clauses)
+        self._update_clauses.conjoin(strengthening_clauses)
+        
         self._strengthen_updated_syms(updated_syms)
         
         # if the set of updated syms was reduced we need to make sure that the update clauses
@@ -183,7 +188,7 @@ class ProcedureSummary(object):
         return self._updated_syms
     
     def get_update_clauses(self):
-        return self._update_clauses
+        return self._update_clauses.to_single_clauses()
     
     def get_precondition(self):
         return ivy_logic_utils.true_clauses() # no precondition
@@ -196,23 +201,27 @@ class ProcedureSummary(object):
         return ivy_solver.clauses_imply(self.get_update_clauses(),
                                         other_summary.get_update_clauses())
         
+    def _symbols_appearing_in_summary(self):
+        return set(self._updated_syms) | symbols_in_clauses_lst(self._update_clauses.get_conjuncts_clauses_list())
+        
     def substitute_formals(self, subst):
         assert set(subst.keys()) == set(self._formal_params)
-        assert set(subst.values()) & set(self._update_clauses.symbols()) == set()
+        assert set(subst.values()) & set(self._symbols_appearing_in_summary()) == set()
         
-        renamed_formas = [subst[s] for s in self._formal_params]
+        renamed_formals = [subst[s] for s in self._formal_params]
         
         two_vocab_subst = {}
         for s, t in subst.iteritems():
             assert not ivy_transrel.is_new(s)
             two_vocab_subst[s] = t
             two_vocab_subst[ivy_transrel.new(s)] = ivy_transrel.new(t)
-        renamed_update_clauses = ivy_transrel.rename_clauses(self._update_clauses,
-                                                             two_vocab_subst)
+        renamed_update_clauses_lst = [ivy_transrel.rename_clauses(clauses,
+                                                                  two_vocab_subst)
+                                      for clauses in self._update_clauses.get_conjuncts_clauses_list()]
         
         renamed_updated_syms = [apply_dict_if_in_domain(s, subst) for s in self._updated_syms]
-        return ProcedureSummary(renamed_formas,
-                                renamed_update_clauses,
+        return ProcedureSummary(renamed_formals,
+                                renamed_update_clauses_lst,
                                 renamed_updated_syms)
 
 class SummarizedAction(ivy_actions.Action):
@@ -465,8 +474,7 @@ def rename_callee_formals_back(clauses_lst, call_action):
     global calls_vars_renamer
     invert_formals_map = calls_vars_renamer.formal_syms_inversion_map(call_action, formals)
     
-    collision_avoidance_map = rename_map_not_to_mention_but_maintain_time(set().union(*[clauses.symbols() for
-                                                                                      clauses in clauses_lst]), 
+    collision_avoidance_map = rename_map_not_to_mention_but_maintain_time(symbols_in_clauses_lst(clauses_lst), 
                                                                           formals)
     
     action_without_collisions = call_action.substitute(collision_avoidance_map)
@@ -849,9 +857,9 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         procedure_summaries = {}
     
         for name, ivy_action in self._actions_dict.iteritems():
-            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action))
-            # TODO: hack, and explain
-            procedure_summaries[name]._update_clauses = ivy_logic_utils.false_clauses()
+            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action),
+                                                         update_clauses_lst=[ivy_logic_utils.false_clauses()])
+            # TODO: explain why this makes sense (calls are not allowed)
             
         return procedure_summaries
     
@@ -915,7 +923,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             update_clauses = None
             updated_vars = None
             if name not in call_summary_by_name.keys():
-                update_clauses = ivy_logic_utils.false_clauses()
+                update_clauses = [ivy_logic_utils.false_clauses()]
                 updated_vars = []
             else:
                 (update_clauses, updated_vars) = call_summary_by_name[name]
