@@ -155,6 +155,11 @@ class ProcedureSummary(object):
         return (updated_syms_in_vocab, strengthening_clauses_in_vocab)
                                                                      
     
+
+    def _modify_clauses_according_to_updated_syms(self):
+        self._update_clauses = two_vocab_respecting_non_updated_syms(self._update_clauses, 
+                                                                     self._updated_syms)
+
     def strengthen(self, summary_strengthening):
         # TODO: instead of that, take the update clauses when generalizing WITH hiding applied formals
         strengthening_in_vocab = self._update_strenghening_to_vocab_update(summary_strengthening)
@@ -163,6 +168,10 @@ class ProcedureSummary(object):
         self._update_clauses = ivy_transrel.conjoin(self._update_clauses, 
                                                     strengthening_clauses)
         self._strengthen_updated_syms(updated_syms)
+        
+        # if the set of updated syms was reduced we need to make sure that the update clauses
+        # reflect that for unchanged symbols
+        self._modify_clauses_according_to_updated_syms()
         
     def _strengthen_updated_syms(self, new_updated_syms): 
         assert all(s in self.get_updated_vars() for s in new_updated_syms)
@@ -334,6 +343,9 @@ def get_decomposed_cex_if_exists(ag, state_to_decompose,
         if any(isinstance(action, action_type) for action_type in interesting_actions):
             previous_state = analysis_graph.states[i-1]
             
+            assert is_pre_vocabulary(previous_state.clauses), previous_state.clauses
+            assert is_pre_vocabulary(state.clauses), state.clauses
+            
             subprocedures_states.append((action, previous_state, state))
             # don't continue recursively - decomposing SummarizedAction fails due to
             # variable renaming
@@ -398,6 +410,16 @@ def clauses_to_new_vocabulary(clauses):
         assert not ivy_transrel.is_new(s), s
         renaming[s] = ivy_transrel.new(s)
     return ivy_logic_utils.rename_clauses(clauses, renaming)
+
+def is_pre_vocabulary(clauses):
+    for s in clauses.symbols():
+        if s.is_numeral():
+            continue
+        if ivy_transrel.is_skolem(s):
+            continue
+        if ivy_transrel.is_new(s):
+            return False
+    return True
 
 def clauses_from_new_vocabulary_except_for(clauses, updated_syms):
     renaming = dict()
@@ -599,6 +621,9 @@ def separate_two_vocab_clauses_to_pre_and_post_clauses(updated_syms, two_vocab_c
 def ag_from_pre_and_post_clauses(action_repr, pre_clauses, post_clauses):
     # action_repr can be the action name or the Action itself
     
+    assert is_pre_vocabulary(pre_clauses), pre_clauses
+    assert is_pre_vocabulary(post_clauses), post_clauses
+    
     pre_state = ivy_interp.State(value=ivy_transrel.pure_state(pre_clauses))
     post_state = ivy_interp.State(value=ivy_transrel.pure_state(post_clauses))
     
@@ -638,6 +663,8 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
                                                                                   call_action)
             before_clauses_callee_vocab = clauses_renamed_lst[0]
             after_clauses_callee_vocab = clauses_renamed_lst[1]
+            assert is_pre_vocabulary(before_clauses_callee_vocab)
+            assert is_pre_vocabulary(after_clauses_callee_vocab)
             
             ag_call_decomposition = ag_from_pre_and_post_clauses(call_action_renamed, 
                                                                  before_clauses_callee_vocab, 
@@ -650,9 +677,14 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
             summarized_transition = summarized_actions_transitions[0]
             before_clauses_callee_vocab = summarized_transition[1].clauses
             after_clauses_callee_vocab = summarized_transition[2].clauses
+            
+            logger.debug("Pure transition before clauses: %s", before_clauses_callee_vocab)
+            logger.debug("Pure transition after clauses: %s", after_clauses_callee_vocab)
 
             transition_summary = ivy_transrel.conjoin(before_clauses_callee_vocab, 
                                                       clauses_to_new_vocabulary(after_clauses_callee_vocab))
+            
+            assert ivy_solver.clauses_sat(transition_summary)
             
             logger.debug("Transition summary: %s", transition_summary)
             summary_in_vocab = transform_to_callee_summary_vocabulary(transition_summary, 
