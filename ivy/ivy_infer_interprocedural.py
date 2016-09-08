@@ -313,7 +313,9 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         global calls_vars_renamer
         return calls_vars_renamer.unique_formals(call_action, formals)
         
-def get_decomposed_cex_if_exists(ag, state_to_decompose, decomposition_must_exist=False):
+def get_decomposed_cex_if_exists(ag, state_to_decompose, 
+                                 interesting_actions,
+                                 decomposition_must_exist=False):
     analysis_graph = ag.decompose_state_partially_repsect_context(state_to_decompose)
     if not decomposition_must_exist and analysis_graph is None:
         return None
@@ -329,24 +331,58 @@ def get_decomposed_cex_if_exists(ag, state_to_decompose, decomposition_must_exis
         
         action = ivy_interp.eval_action(state.expr.rep)
         
-        if isinstance(action, ivy_actions.AssignAction) or \
-           isinstance(action, ivy_actions.AssumeAction) or \
-           isinstance(action, ivy_actions.AssertAction) or \
-           isinstance(action, ivy_actions.HavocAction) or \
-           isinstance(action, SummarizedAction):
-            continue
-        
-        if isinstance(action, ivy_actions.CallAction):
+        if any(isinstance(action, action_type) for action_type in interesting_actions):
             previous_state = analysis_graph.states[i-1]
             
             subprocedures_states.append((action, previous_state, state))
             # don't continue recursively - decomposing SummarizedAction fails due to
             # variable renaming
         else:
-            rec_res = get_decomposed_cex_if_exists(ag, state, decomposition_must_exist=True)
+            if isinstance(action, ivy_actions.AssignAction) or \
+               isinstance(action, ivy_actions.AssumeAction) or \
+               isinstance(action, ivy_actions.AssertAction) or \
+               isinstance(action, ivy_actions.HavocAction) or \
+               isinstance(action, SummarizedAction):
+                continue
+            
+            rec_res = get_decomposed_cex_if_exists(ag, state, 
+                                                   interesting_actions,
+                                                   decomposition_must_exist=True)
             subprocedures_states += rec_res
         
     return subprocedures_states
+
+def decompose_call_action(call_action, pre_clauses, post_clauses):
+    ag = ag_from_pre_and_post_clauses(call_action, pre_clauses, post_clauses)
+    assert len(ag.states) == 2
+    
+    analysis_graph = ag.decompose_state_partially_repsect_context(ag.states[-1])
+    assert analysis_graph is not None
+    
+#     assert len(analysis_graph.states) == 3
+            
+    subprocedures_states = []
+    
+    # Note: the first state is the initial state, and it is not associated with any action
+    for i in xrange(1, len(analysis_graph.states)):
+        state = analysis_graph.states[i]
+        if state.expr is None:
+            continue
+        
+        action = ivy_interp.eval_action(state.expr.rep)
+        
+        assert isinstance(action, SummarizedAction), action
+        
+        previous_state = analysis_graph.states[i-1]
+        
+        return previous_state.clauses, state.clauses
+        
+#         if isinstance(action, ivy_actions.AssignAction) or \
+#            isinstance(action, ivy_actions.AssumeAction) or \
+#            isinstance(action, ivy_actions.AssertAction) or \
+#            isinstance(action, ivy_actions.HavocAction) or \
+#            isinstance(action, SummarizedAction):
+#             continue
 
 def clauses_to_new_vocabulary(clauses):
     """"Type of vocabulary used by actions, see ivy_transrel.state_to_action"""
@@ -588,7 +624,8 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
         # Note: the ag here doesn't incorporate a cex to decompose but the abstract
         # pre and post clauses, finding a counterexample is performed in the same
         # time as the decomposition
-        subprocedures_transitions = get_decomposed_cex_if_exists(ag, ag.states[-1])
+        subprocedures_transitions = get_decomposed_cex_if_exists(ag, ag.states[-1],
+                                                                 [ivy_actions.CallAction])
         
         if subprocedures_transitions is None:
             return None
@@ -600,6 +637,18 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
                                                                                   call_action)
             before_clauses_callee_vocab = clauses_renamed_lst[0]
             after_clauses_callee_vocab = clauses_renamed_lst[1]
+            
+            ag_call_decomposition = ag_from_pre_and_post_clauses(call_action_renamed, 
+                                                                 before_clauses_callee_vocab, 
+                                                                 after_clauses_callee_vocab)
+            summarized_actions_transitions = get_decomposed_cex_if_exists(ag_call_decomposition, 
+                                                                          ag_call_decomposition.states[-1],
+                                                                          [SummarizedAction],
+                                                                          decomposition_must_exist=True)
+            assert len(summarized_actions_transitions) == 1, summarized_actions_transitions
+            summarized_transition = summarized_actions_transitions[0]
+            before_clauses_callee_vocab = summarized_transition[1].clauses
+            after_clauses_callee_vocab = summarized_transition[2].clauses
 
             transition_summary = ivy_transrel.conjoin(before_clauses_callee_vocab, 
                                                       clauses_to_new_vocabulary(after_clauses_callee_vocab))
