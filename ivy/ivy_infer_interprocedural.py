@@ -395,6 +395,7 @@ def clauses_to_new_vocabulary(clauses):
             continue
         if ivy_transrel.is_skolem(s):
             continue
+        assert not ivy_transrel.is_new(s), s
         renaming[s] = ivy_transrel.new(s)
     return ivy_logic_utils.rename_clauses(clauses, renaming)
 
