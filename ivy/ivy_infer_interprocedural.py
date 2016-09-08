@@ -383,9 +383,9 @@ def hide_symbol_if(clauses, should_hide_pred):
     syms_to_hide = [s for s in clauses.symbols() if should_hide_pred(s)]
     return ivy_transrel.hide_clauses(syms_to_hide, clauses)
 
-def rename_not_to_mention_maintain_time(clauses, syms_to_avoid):
+def rename_map_not_to_mention_but_maintain_time(all_symbols, syms_to_avoid):
     import ivy_utils
-    unique_renamer = ivy_utils.UniqueRenamer('', clauses.symbols())
+    unique_renamer = ivy_utils.UniqueRenamer('', all_symbols)
     rename_map = {}
     
     for s in syms_to_avoid:
@@ -393,13 +393,11 @@ def rename_not_to_mention_maintain_time(clauses, syms_to_avoid):
         renamed_name = ivy_transrel.rename(s, unique_renamer)
         rename_map[s] = renamed_name
         rename_map[ivy_transrel.new(s)] = ivy_transrel.new(renamed_name)
-        assert s not in clauses.symbols() or rename_map[s] != s, s
+        assert s not in all_symbols or rename_map[s] != s, s
         
-    res = ivy_logic_utils.rename_clauses(clauses, rename_map)
-    return res
+    return rename_map
 
-
-def hide_symbols_not_in_summary_vocab(two_vocab_clauses, call_action):
+def rename_callee_formals_back(clauses_lst, call_action):
     # TODO: use procedure_summary._summary_vocab
     callee_action = call_action.get_callee()
     formals = callee_action.formal_params + callee_action.formal_returns
@@ -407,10 +405,24 @@ def hide_symbols_not_in_summary_vocab(two_vocab_clauses, call_action):
     global calls_vars_renamer
     invert_formals_map = calls_vars_renamer.formal_syms_inversion_map(call_action, formals)
     
-    # avoiding collisions on our renaming of the formals back to their original form
-    two_vocab_clauses = rename_not_to_mention_maintain_time(two_vocab_clauses, formals)
+    collision_avoidance_map = rename_map_not_to_mention_but_maintain_time(set().union(*[clauses.symbols() for
+                                                                                      clauses in clauses_lst]), 
+                                                                          formals)
     
-    two_vocab_clauses = ivy_transrel.rename_clauses(two_vocab_clauses, invert_formals_map)
+    action_without_collisions = call_action.substitute(collision_avoidance_map)
+    
+    # avoiding collisions on our renaming of the formals back to their original form
+    clauses_lst = [ivy_transrel.rename_clauses(two_vocab_clauses, collision_avoidance_map)
+                    for two_vocab_clauses in clauses_lst]
+    
+    clauses_lst = [ivy_transrel.rename_clauses(two_vocab_clauses, invert_formals_map)
+                    for two_vocab_clauses in clauses_lst]
+    
+    return clauses_lst, action_without_collisions
+
+def hide_symbols_not_in_summary_vocab(two_vocab_clauses, call_action):
+    callee_action = call_action.get_callee()
+    formals = callee_action.formal_params + callee_action.formal_returns
     
     symbols_can_be_modified = get_signature_symbols() + formals
     symbols_can_be_modified_two_vocab = symbols_can_be_modified + [ivy_transrel.new(s) for s in symbols_can_be_modified]
@@ -533,7 +545,7 @@ def prepare_update_with_axioms_and_obligation(updated_syms, two_vocab_update,
     
     return (update_with_axioms, obligation_wrt_sym_update)
 
-def separate_two_vocab_clauses_to_pre_and_post_states(updated_syms, two_vocab_cex_clauses):
+def separate_two_vocab_clauses_to_pre_and_post_clauses(updated_syms, two_vocab_cex_clauses):
     hide_in_pre_syms = [s for s in two_vocab_cex_clauses.symbols() 
                             if ivy_transrel.is_new(s)]
     hide_in_post_syms   = [s for s in two_vocab_cex_clauses.symbols() 
@@ -545,18 +557,25 @@ def separate_two_vocab_clauses_to_pre_and_post_states(updated_syms, two_vocab_ce
                                              two_vocab_cex_clauses)
     post_clauses = clauses_from_new_vocabulary(post_clauses_post_vocab)
     
-    return (ivy_interp.State(value=ivy_transrel.pure_state(pre_clauses)),
-            ivy_interp.State(value=ivy_transrel.pure_state(post_clauses)))
+    return (pre_clauses, post_clauses)
     
-def ag_from_two_vocab_clauses(action_name, updated_syms, two_vocab_cex_clauses):
-    pre_state, post_state = separate_two_vocab_clauses_to_pre_and_post_states(updated_syms,
-                                                                              two_vocab_cex_clauses)
+def ag_from_pre_and_post_clauses(action_repr, pre_clauses, post_clauses):
+    # action_repr can be the action name or the Action itself
+    
+    pre_state = ivy_interp.State(value=ivy_transrel.pure_state(pre_clauses))
+    post_state = ivy_interp.State(value=ivy_transrel.pure_state(post_clauses))
     
     ag = ivy_art.AnalysisGraph()
     # based on AnalysisGraph.execute
     ag.add(pre_state)
-    ag.add(post_state, ivy_interp.action_app(action_name, pre_state))
+    ag.add(post_state, ivy_interp.action_app(action_repr, pre_state))
     return ag
+    
+def ag_from_two_vocab_clauses(action_name, updated_syms, two_vocab_cex_clauses):
+    pre_clauses, post_clauses = separate_two_vocab_clauses_to_pre_and_post_clauses(updated_syms,
+                                                                              two_vocab_cex_clauses)
+    return ag_from_pre_and_post_clauses(action_name, pre_clauses, post_clauses)
+    
     
 def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
     # TODO: this actually assumes that the action consists of at least something more than the
@@ -577,13 +596,22 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
         for call_action, before_state, after_state in subprocedures_transitions:
             symbols_updated_in_the_transition = procedure_summaries[call_action.callee_name()].get_updated_vars()
             
+            clauses_renamed_lst, call_action_renamed = rename_callee_formals_back([before_state.clauses, after_state.clauses],
+                                                                                  call_action)
+            before_clauses_callee_vocab = clauses_renamed_lst[0]
+            after_clauses_callee_vocab = clauses_renamed_lst[1]
+
+            transition_summary = ivy_transrel.conjoin(before_clauses_callee_vocab, 
+                                                      clauses_to_new_vocabulary(after_clauses_callee_vocab))
             
-            transition_summary = transition_states_to_transition_clauses(before_state, after_state,
-                                                                                  symbols_updated_in_the_transition)
+            clauses_renamed_lst, call_action_renamed = rename_callee_formals_back([transition_summary],
+                                                                                  call_action)
+            transition_summary = clauses_renamed_lst[0]
+            
             logger.debug("Transition summary: %s", transition_summary)
             summary_in_vocab = transform_to_callee_summary_vocabulary(transition_summary, 
-                                                                           call_action,
-                                                                           symbols_updated_in_the_transition)
+                                                                       call_action,
+                                                                       symbols_updated_in_the_transition)
             
             concrete_summary = concretize(summary_in_vocab, symbols_updated_in_the_transition,
                                           get_signature_symbols())
