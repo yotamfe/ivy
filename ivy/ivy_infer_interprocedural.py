@@ -692,7 +692,7 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
                                                                        symbols_updated_in_the_transition)
             
             concrete_summary = concretize(summary_in_vocab, symbols_updated_in_the_transition,
-                                          get_signature_symbols())
+                                          get_signature_symbols()) # TODO: also concretize the formals
             
             # TODO: use utils from ivy_infer_universal
             universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(concrete_summary, 
