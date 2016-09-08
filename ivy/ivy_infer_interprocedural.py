@@ -83,6 +83,7 @@ import ivy_logic
 
 import sys
 import logging
+import datetime
 
 diagnose = iu.BooleanParameter("diagnose",False)
 coverage = iu.BooleanParameter("coverage",True)
@@ -753,6 +754,7 @@ def infer_safe_summaries():
     gupdr_elements = GUPDRElements(ivy_module.module.actions, 
                                   exported_actions_names)
     
+    logging.info("Start time: %s", datetime.datetime.now())
     is_safe, frame_or_cex = ivy_infer.pdr(gupdr_elements)
     if not is_safe:
         logger.info("Possibly not safe!")
@@ -766,9 +768,11 @@ def infer_safe_summaries():
         logger.info("Safe!")
         safe_frame = frame_or_cex
         for name, summary in safe_frame.iteritems():
-            logger.debug("Summary of procedure %s:", name)
-            logger.debug("%s" % summary.get_update_clauses())
-            logger.debug("")
+            logger.info("Summary of procedure %s:", name)
+            logger.info("%s" % summary.get_update_clauses())
+            logger.info("")
+            
+    logging.info("End time: %s", datetime.datetime.now())
         
 
 #     procedure_summaries = {}
