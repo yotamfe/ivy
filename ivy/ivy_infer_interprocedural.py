@@ -156,6 +156,7 @@ class ProcedureSummary(object):
                                                                      
     
     def strengthen(self, summary_strengthening):
+        # TODO: instead of that, take the update clauses when generalizing WITH hiding applied formals
         strengthening_in_vocab = self._update_strenghening_to_vocab_update(summary_strengthening)
         updated_syms, strengthening_clauses = strengthening_in_vocab
         
