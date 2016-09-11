@@ -29,7 +29,10 @@ class ClausesClauses(object):
         return res
    
     def conjoin(self, clauses):
-        self._conjuncts_clauses_list.append(clauses)
+        if clauses.is_false():
+            self._conjuncts_clauses_list = [clauses]
+        elif not clauses.is_true():
+            self._conjuncts_clauses_list.append(clauses)
         
     def get_model(self):
         import z3
