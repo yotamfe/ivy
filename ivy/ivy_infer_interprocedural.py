@@ -196,6 +196,9 @@ class ProcedureSummary(object):
     def get_precondition(self):
         return ivy_logic_utils.true_clauses() # no precondition
     
+    def update_clauses_clauses(self):
+        return self._update_clauses
+    
     def implies(self, other_summary):
         assert self.get_precondition() == other_summary.get_precondition()
         if any(s not in other_summary.get_updated_vars()
@@ -284,7 +287,7 @@ class CallsVarRenamer(object):
         for s in formals:
             if (call_action, s) in self._renaming.keys():
                 # this might happen if some argument is both in and out
-                logger.debug("Dup formal sym renaming: %s, %s, %s" % (call_action, call_action.callee_name(), s))
+                # logger.debug("Dup formal sym renaming: %s, %s, %s" % (call_action, call_action.callee_name(), s))
                 mapped_symbol = self._renaming[(call_action, s)]
             else:
                 call_id = self._calls_to_ids[call_action]
@@ -725,6 +728,29 @@ def get_proc_update_under_callees_summary(ivy_action, procedure_summaries):
                                                                                       axioms)
         return updated_syms, two_vocab_update
     
+def check_transitions_without_generating_goals(ivy_action, proc_name,
+                                              procedure_summaries, two_vocab_obligations):
+    res = []
+    
+    with SummarizedActionsContext(procedure_summaries):
+        axioms = im.module.background_theory()
+        # TODO: should not need to pass the axioms here, we conjoin with them later
+        updated_syms, two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
+                                                                                      procedure_summaries, 
+                                                                                      axioms)
+        logger.debug("syms updated by the procedure: %s", updated_syms)
+        
+        for two_vocab_obligation in two_vocab_obligations:
+            update_with_axioms, obligation_wrt_sym_update = prepare_update_with_axioms_and_obligation(updated_syms, two_vocab_update, 
+                                                                                                      two_vocab_obligation)
+            
+            two_vocab_transition_to_violation = ivy_transrel.conjoin(update_with_axioms,
+                                                                     ivy_logic_utils.dual_clauses(obligation_wrt_sym_update))
+            
+            res.append(not ivy_solver.clauses_sat(two_vocab_transition_to_violation))
+        
+    return res
+    
 def check_procedure_transition(ivy_action, proc_name,
                                procedure_summaries, two_vocab_obligation):
     with SummarizedActionsContext(procedure_summaries):
@@ -887,25 +913,56 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
     def unrolled_summary(self, previous_bound_summmaries):
         procedure_summaries = self.top_summary()
         
-        for name, summary in procedure_summaries.iteritems():
+#         for name, summary in procedure_summaries.iteritems():
+#             ivy_action = self._actions_dict[name]
+#             updated_syms_overapproximation, _ = get_proc_update_under_callees_summary(ivy_action, 
+#                                                                                       previous_bound_summmaries)
+#             
+#             logger.debug("Push updated symbols of %s in new frame: %s", name, updated_syms_overapproximation)
+#             summary.strengthen((ivy_logic_utils.true_clauses(),
+#                                 updated_syms_overapproximation))
+            
+            # TODO: convert according to the previous frame updated symbols?
+#             previous_clauses = previous_bound_summmaries[name].get_update_clauses()
+#             # TODO: optimize, no need to generate proof goals
+#             relative_ind_goals = check_procedure_transition(ivy_action, name, 
+#                                                             previous_bound_summmaries,
+#                                                             previous_clauses)
+#             if relative_ind_goals is None:
+#                 logger.debug("Summary of %s pushed to next frame: %s", name, previous_clauses)
+#                 summary.strengthen((previous_clauses, updated_syms_overapproximation))
+#             else:
+#                 logger.debug("Couldn't push summary for %s: %s", name, previous_clauses)
+#                 
+#             logger.debug("Unrolled summary of %s: %s", name, summary)
+        
+        return procedure_summaries
+    
+    def push_forward(self, prev_summaries, current_summaries):
+        for name, summary in current_summaries.iteritems():
             ivy_action = self._actions_dict[name]
             updated_syms_overapproximation, _ = get_proc_update_under_callees_summary(ivy_action, 
-                                                                                      previous_bound_summmaries)
+                                                                                      prev_summaries)
+             
+            logger.debug("Push updated symbols of %s in new frame: %s", name, updated_syms_overapproximation)
             summary.strengthen((ivy_logic_utils.true_clauses(),
                                 updated_syms_overapproximation))
             
-            previous_clauses = previous_bound_summmaries[name].get_update_clauses()
+            # TODO: convert according to the previous frame updated symbols?
+            clauses_to_push = prev_summaries[name].update_clauses_clauses().get_conjuncts_clauses_list()
             # TODO: optimize, no need to generate proof goals
-            relative_ind_goals = check_procedure_transition(ivy_action, name, 
-                                                               previous_bound_summmaries,
-                                                               previous_clauses)
-            if relative_ind_goals is None:
-                logger.debug("Summary of %s is relative inductive: %s", name, previous_clauses)
-                summary.strengthen((previous_clauses, updated_syms_overapproximation))
-                
-            logger.debug("Unrolled summary of %s: %s", name, summary)
+            transitions_guaranteed = check_transitions_without_generating_goals(ivy_action, name, 
+                                                                                prev_summaries,
+                                                                                clauses_to_push)
+            assert len(clauses_to_push) == len(transitions_guaranteed)
+            for clauses, is_guaranteed in zip(clauses_to_push, transitions_guaranteed):
+                if is_guaranteed:
+                    logger.debug("Summary of %s pushed to next frame: %s", name, clauses)
+                    summary.strengthen((clauses, updated_syms_overapproximation))
+                else:
+                    logger.debug("Couldn't push summary for %s: %s", name, clauses)
         
-        return procedure_summaries
+        return current_summaries
     
     # Return (None,None) if safe or (unsafe_predicate, proof obligation) otherwise
     def check_summary_safety(self, summaries):

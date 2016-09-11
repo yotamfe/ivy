@@ -135,6 +135,10 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         # simplest implementation, not pushing anything forward
         return self.top_summary()
     
+    def push_forward(self, prev_summaries, current_summaries):
+        # simplest implementation, not pushing anything forward
+        return current_summaries
+    
     def check_summary_safety(self, summaries):
         inv_summary = summaries["inv"].get_summary()
         bad_clauses = ivy_logic_utils.to_clauses('cme(I)')
