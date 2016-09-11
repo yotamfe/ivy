@@ -187,12 +187,12 @@ def backwards_prove_at_least_one_goal(frames, current_bound,
             
             continue
  
-        summary_proof_obligation_generalization = pdr_elements.generalize_intransformability(predicate,
+        for i in xrange(1, current_bound + 1):
+            summary_proof_obligation_generalization = pdr_elements.generalize_intransformability(predicate,
                                                                                                  frames[current_bound-1].get_summaries_by_symbol_dict(),
                                                                                                  summary_proof_obligation)
-        logger.debug("pdr strenghtening frames for %s up to bound %d with %s", 
-                         predicate, current_bound, summary_proof_obligation_generalization) 
-        for i in xrange(1, current_bound + 1):
+            logger.debug("pdr strenghtening frames for %s up to bound %d with %s", 
+                         predicate, current_bound, summary_proof_obligation_generalization)
             frames[i].strengthen(predicate, summary_proof_obligation_generalization)
            
         # successfully proved at least one proof goal
