@@ -2,66 +2,6 @@
 # Copyright (c) Microsoft Corporation. All Rights Reserved.
 #
 
-# A DAG of calls represents a compressed call stack potentially leading to a counterexample
-# Our goal is to prove that the DAG is unrealizable
-#
-# Every node contains: in the GPDR paper, a structure and a stack level (current frame)
-#
-# (rule Decide, p. 7) Each node points to "children" that correspond to a realization of the 
-# state of the procedure with summaries of the callee procedures from the current previous frame - right?
-# We go and try to refine the previous frame procedures to make sure this can't happen (spurious)
-# How?
-# I think really the local variables from the current procedure are not that important
-# What's important is a realization of the *callees* local variables (in their last stack frame),
-# which are allowed by those procedures' summaries (and together lead to the violation).
-# SO WE NEED A MODEL OF EVERY CALLEE SUMMARY that together violate the current procedure proof obligation
-# we then continue to try to refine AT LEAST ONE callee summary to show that this model is actually unreachable,
-# then we can close this branch of the DAG.
-# Why? Because the frames i should now exclude M, so we can remove M,i from the DAG.
-# Once a node has no children (because we blocked all possible callee states that we previously expanded)
-# and cannot be expanded --- because the summaries at frame i-1 show that the procedure at bound i must satisfy
-# the proof goal --- we can remove this node as well (recursively or something).
-
-# We use UPDR, so what we keep in the nodes is not states but their generalization, because every generalization
-# (in the universal cone) leads to violating the "proof goal" (we begin with safety, of course).
-
-# this is a cache of REACHABLE states
-# GPDR also uses a CACHE, not sure what this is
-# for us this is diagrams? how to check equality?...
-# TODO: Why do we need this?...
-
-# TODO: how does the algorithm traverse the DAG? recursively, DFS?
-# TODO: do we really need to hold the DAG explicitly, then?
-
-# Different paths in the same procedure:
-# 1. One solution is to assume that all calls are relevant to every path
-# TODO: why is this not good enough? Efficiency of calls to Z3?
-# 2. Another solution is to break the procedure to all distinct paths,
-# So there are now several different transforms for the same procedure
-# How is this represented in the graph? I think it's not represented,
-# it's just something you use in the expansion rule, and once you can't expand
-# by any procedural path, you are done.
-
-# TODO: PRECONDITION AND POSTCONDITION
-
-# TODO: also need to decide SAFETY and INIT
-
-# TODO: EA summaries?
-
-
-# Technical solution of interprocedural Ivy semantics:
-# a History where each state is a subcall to a procedure?
-# Obtain the update function (for the history_forward_step) by modifying
-# ivy_actions.CallAction.int_udpate?
-# see also CallAction.get_callee(self) which may be a good place to change
-# but returns type Action
-# perhaps return an AssumeAction according to the summary? No.
-# perhaps a designated action?
-
-# history = self.get_history(state, bound) in ivy_art.bmc has the state
-# in which we will check satisfy, that is: the final state
-# the state argument in history_satisfy seems to have lesser effect.
-
 import ivy
 import ivy_interp as itp
 import ivy_utils as utl
@@ -90,18 +30,6 @@ coverage = iu.BooleanParameter("coverage",True)
 
 logger = logging.getLogger(__file__)
 
-import ivy_actions
-import ivy_transrel
-
-def zzz_new_no_error_clauses():
-    sig = ivy_module.module.sig
-    for sym in sig.symbols.items():
-        if sym[0] == 'errorush':
-            errorush_sym = sym[1]
-            break
-    no_error_clauses = ivy_logic_utils.dual_clauses(ivy_logic_utils.Clauses([ivy_transrel.new(errorush_sym)]))
-    return no_error_clauses
-
 def get_signature_symbols():
     sig = ivy_module.module.sig
     sig_symbols = [sym[1] for sym in sig.symbols.items()]
@@ -119,7 +47,6 @@ def apply_dict_if_in_domain(s, subst):
         return s
     else:
         return subst[s]
-    
 
 def symbols_in_clauses_lst(clauses_lst):
     return set().union(*[clauses.symbols() for clauses in clauses_lst])
@@ -379,38 +306,6 @@ def get_decomposed_cex_if_exists(ag, state_to_decompose,
             subprocedures_states += rec_res
         
     return subprocedures_states
-
-def decompose_call_action(call_action, pre_clauses, post_clauses):
-    ag = ag_from_pre_and_post_clauses(call_action, pre_clauses, post_clauses)
-    assert len(ag.states) == 2
-    
-    analysis_graph = ag.decompose_state_partially_repsect_context(ag.states[-1])
-    assert analysis_graph is not None
-    
-#     assert len(analysis_graph.states) == 3
-            
-    subprocedures_states = []
-    
-    # Note: the first state is the initial state, and it is not associated with any action
-    for i in xrange(1, len(analysis_graph.states)):
-        state = analysis_graph.states[i]
-        if state.expr is None:
-            continue
-        
-        action = ivy_interp.eval_action(state.expr.rep)
-        
-        assert isinstance(action, SummarizedAction), action
-        
-        previous_state = analysis_graph.states[i-1]
-        
-        return previous_state.clauses, state.clauses
-        
-#         if isinstance(action, ivy_actions.AssignAction) or \
-#            isinstance(action, ivy_actions.AssumeAction) or \
-#            isinstance(action, ivy_actions.AssertAction) or \
-#            isinstance(action, ivy_actions.HavocAction) or \
-#            isinstance(action, SummarizedAction):
-#             continue
 
 def clauses_to_new_vocabulary(clauses):
     """"Type of vocabulary used by actions, see ivy_transrel.state_to_action"""
