@@ -949,6 +949,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
                                 updated_syms_overapproximation))
             
             # TODO: convert according to the previous frame updated symbols?
+            # TODO: perhaps keep it in the original form in the clauses so we can know what this really meant?
             clauses_to_push = prev_summaries[name].update_clauses_clauses().get_conjuncts_clauses_list()
             # TODO: optimize, no need to generate proof goals
             transitions_guaranteed = check_transitions_without_generating_goals(ivy_action, name, 
