@@ -141,6 +141,9 @@ class ProcedureSummary(object):
             updated_syms = self._summary_vocab
         self._updated_syms = updated_syms
         
+    def __str__(self):
+        return "update: %s, syms: %s" % (self.get_update_clauses(), self.get_updated_vars()) 
+        
     def _update_strenghening_to_vocab_update(self, summary_strengthening):
         strenghening_clauses, updated_syms = summary_strengthening
         
@@ -712,6 +715,15 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
             summary_obligations.append((call_action.callee_name(), res))
         
     return summary_obligations
+
+def get_proc_update_under_callees_summary(ivy_action, procedure_summaries):
+    with SummarizedActionsContext(procedure_summaries):
+        axioms = im.module.background_theory()
+        # TODO: should not need to pass the axioms here, we conjoin with them later
+        updated_syms, two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
+                                                                                      procedure_summaries, 
+                                                                                      axioms)
+        return updated_syms, two_vocab_update
     
 def check_procedure_transition(ivy_action, proc_name,
                                procedure_summaries, two_vocab_obligation):
@@ -870,6 +882,29 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         for name, ivy_action in self._actions_dict.iteritems():
             procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action))
             
+        return procedure_summaries
+    
+    def unrolled_summary(self, previous_bound_summmaries):
+        procedure_summaries = self.top_summary()
+        
+        for name, summary in procedure_summaries.iteritems():
+            ivy_action = self._actions_dict[name]
+            updated_syms_overapproximation, _ = get_proc_update_under_callees_summary(ivy_action, 
+                                                                                      previous_bound_summmaries)
+            summary.strengthen((ivy_logic_utils.true_clauses(),
+                                updated_syms_overapproximation))
+            
+            previous_clauses = previous_bound_summmaries[name].get_update_clauses()
+            # TODO: optimize, no need to generate proof goals
+            relative_ind_goals = check_procedure_transition(ivy_action, name, 
+                                                               previous_bound_summmaries,
+                                                               previous_clauses)
+            if relative_ind_goals is None:
+                logger.debug("Summary of %s is relative inductive: %s", name, previous_clauses)
+                summary.strengthen((previous_clauses, updated_syms_overapproximation))
+                
+            logger.debug("Unrolled summary of %s: %s", name, summary)
+        
         return procedure_summaries
     
     # Return (None,None) if safe or (unsafe_predicate, proof obligation) otherwise

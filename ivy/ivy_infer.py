@@ -77,6 +77,11 @@ class PdrElements(object):
     def generalize_intransformability(self, prestate_summaries, poststate_clauses):
         pass
            
+           
+    @abc.abstractmethod
+    def unrolled_summary(self, previous_bound_summmaries):
+        pass
+    
 class PredicateSummary(object):
     def __init__(self, predicate_symbol, summary_single_clauses):
         self._predicate_symbol = predicate_symbol
@@ -227,9 +232,13 @@ def pdr(pdr_elements):
     current_bound = 0
    
     while True:
+        previous_summaries = frames[current_bound].get_summaries_by_symbol_dict()
         logger.debug("pdr: unroll to %d", current_bound + 1)
+        
         new_bound = current_bound + 1
-        frames.insert(new_bound, PdrFrame(pdr_elements.top_summary()))
+        # frames.insert(new_bound, PdrFrame(pdr_elements.top_summary()))
+        initial_new_frame = PdrFrame(pdr_elements.unrolled_summary(previous_summaries))
+        frames.insert(new_bound, initial_new_frame)
        
         (successfully_blocked, cex) = backward_refine_frames_or_counterexample(frames, new_bound, pdr_elements)
         if not successfully_blocked:
