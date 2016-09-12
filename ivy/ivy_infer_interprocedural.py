@@ -916,7 +916,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             update_clauses = None
             updated_vars = None
             if name not in call_summary_by_name.keys():
-                update_clauses = [ivy_logic_utils.false_clauses()]
+                update_clauses = ivy_logic_utils.false_clauses()
                 updated_vars = []
             else:
                 (update_clauses, updated_vars) = call_summary_by_name[name]
