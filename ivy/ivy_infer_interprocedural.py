@@ -922,7 +922,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
                 (update_clauses, updated_vars) = call_summary_by_name[name]
             
             procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action),
-                                                         update_clauses,
+                                                         [update_clauses],
                                                          updated_vars)
             
         parent_action = self._actions_dict[cex_node.predicate]
