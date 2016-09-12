@@ -20,6 +20,8 @@ import ivy_solver
 import ivy_infer
 import logic
 import ivy_logic
+import ivy_actions
+import ivy_transrel
 
 import sys
 import logging
@@ -806,16 +808,17 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         return procedure_summaries
     
     def unrolled_summary(self, previous_bound_summmaries):
-        procedure_summaries = self.top_summary()
+        procedure_summaries = {}
         
-#         for name, summary in procedure_summaries.iteritems():
-#             ivy_action = self._actions_dict[name]
-#             updated_syms_overapproximation, _ = get_proc_update_under_callees_summary(ivy_action, 
-#                                                                                       previous_bound_summmaries)
-#             
-#             logger.debug("Push updated symbols of %s in new frame: %s", name, updated_syms_overapproximation)
-#             summary.strengthen((ivy_logic_utils.true_clauses(),
-#                                 updated_syms_overapproximation))
+        for name, ivy_action in self._actions_dict.iteritems():
+            ivy_action = self._actions_dict[name]
+            updated_syms_overapproximation, _ = get_proc_update_under_callees_summary(ivy_action, 
+                                                                                      previous_bound_summmaries)
+            
+            logger.debug("Push updated symbols of %s in new frame: %s", name, updated_syms_overapproximation)
+            
+            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action),
+                                                         updated_syms=updated_syms_overapproximation)
             
             # TODO: convert according to the previous frame updated symbols?
 #             previous_clauses = previous_bound_summmaries[name].get_update_clauses()
@@ -846,6 +849,8 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             # TODO: convert according to the previous frame updated symbols?
             # TODO: perhaps keep it in the original form in the clauses so we can know what this really meant?
             clauses_to_push = prev_summaries[name].update_clauses_clauses().get_conjuncts_clauses_list()
+            clauses_to_push = filter(lambda clauses: not current_summaries[name].update_clauses_clauses().has_conjunct(clauses),
+                                     clauses_to_push)
             # TODO: optimize, no need to generate proof goals
             transitions_guaranteed = check_transitions_without_generating_goals(ivy_action, name, 
                                                                                 prev_summaries,

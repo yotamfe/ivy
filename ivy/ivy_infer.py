@@ -31,8 +31,17 @@ class ClausesClauses(object):
     def conjoin(self, clauses):
         if clauses.is_false():
             self._conjuncts_clauses_list = [clauses]
-        elif not clauses.is_true():
-            self._conjuncts_clauses_list.append(clauses)
+            return
+        if clauses.is_true():
+            return
+#         if self.has_conjunct(clauses):
+#             return
+        self._conjuncts_clauses_list.append(clauses)
+            
+    def has_conjunct(self, clauses):
+        if clauses.is_true():
+            return True
+        return clauses in self._conjuncts_clauses_list
         
     def get_model(self):
         import z3
@@ -256,6 +265,15 @@ def pdr(pdr_elements):
                                                          frames[i+1].get_summaries_by_symbol_dict())
             frames[i+1] = PdrFrame(pushed_summaries)
         logger.debug("End pushing lemmas forward")
+        for i in xrange(0, new_bound):
+            logger.debug("Frame %d:", i)
+            summaries = frames[i].get_summaries_by_symbol_dict()
+            for name, summary in summaries.iteritems():
+                logger.debug("Summary of %s", name)
+                # TODO: this is very bad here, move to __str__ of summary
+                logger.debug("Updated syms: %s", summary.get_updated_vars())
+                for clause in summary.update_clauses_clauses().get_conjuncts_clauses_list():
+                    logger.debug("Summary clause: %s", clause)
        
         (successfully_blocked, cex) = backward_refine_frames_or_counterexample(frames, new_bound, pdr_elements)
         if not successfully_blocked:
