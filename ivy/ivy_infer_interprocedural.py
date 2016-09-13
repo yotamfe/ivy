@@ -841,10 +841,15 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             ivy_action = self._actions_dict[name]
             updated_syms_overapproximation, _ = get_proc_update_under_callees_summary(ivy_action, 
                                                                                       prev_summaries)
+            # TODO: hold updated syms as a set rather than a list
+            updated_syms_overapproximation = set(updated_syms_overapproximation)
+            # Ensuring that the updated syms is monotonic between successive frames 
+            updated_syms_overapproximation |= set(prev_summaries[name].get_updated_vars())
+            # TODO: hold a fixed precomputed set of updated symbols
              
             logger.debug("Push updated symbols of %s in new frame: %s", name, updated_syms_overapproximation)
             summary.strengthen((ivy_logic_utils.true_clauses(),
-                                updated_syms_overapproximation))
+                                list(updated_syms_overapproximation)))
             
             # TODO: convert according to the previous frame updated symbols?
             # TODO: perhaps keep it in the original form in the clauses so we can know what this really meant?
