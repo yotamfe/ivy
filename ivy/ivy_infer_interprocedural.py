@@ -868,6 +868,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             updated_syms_overapproximation = set(updated_syms_overapproximation)
             # Ensuring that the updated syms is monotonic between successive frames 
             updated_syms_overapproximation |= set(prev_summaries[name].get_updated_vars())
+            updated_syms_overapproximation &= set(current_summaries[name].get_updated_vars())
             # TODO: hold a fixed precomputed set of updated symbols
              
             logger.debug("Push updated symbols of %s in new frame: %s", name, updated_syms_overapproximation)
