@@ -697,7 +697,8 @@ def infer_safe_summaries():
     gupdr_elements = GUPDRElements(ivy_module.module.actions, 
                                   exported_actions_names)
     
-    logging.info("Start time: %s", datetime.datetime.now())
+    start_time = datetime.datetime.now()
+    logging.info("Start time: %s", start_time)
     is_safe, frame_or_cex = ivy_infer.pdr(gupdr_elements)
     if not is_safe:
         logger.info("Possibly not safe!")
@@ -715,6 +716,7 @@ def infer_safe_summaries():
             logger.info("%s" % summary.get_update_clauses())
             logger.info("")
             
+    logging.info("Started in time: %s", start_time)
     logging.info("End time: %s", datetime.datetime.now())
         
 
