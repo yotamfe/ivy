@@ -54,7 +54,8 @@ def symbols_in_clauses_lst(clauses_lst):
     return set().union(*[clauses.symbols() for clauses in clauses_lst])
 
 class ProcedureSummary(object):
-    def __init__(self, formal_params, update_clauses_lst=None, updated_syms=None):
+    def __init__(self, formal_params, update_clauses_lst=None, updated_syms=None, 
+                 resolve_formal_names_conflicts_lose_tracking=False):
         super(ProcedureSummary, self).__init__()
         
         self._formal_params = formal_params
@@ -69,6 +70,8 @@ class ProcedureSummary(object):
         if updated_syms is None:
             updated_syms = self._summary_vocab
         self._updated_syms = updated_syms
+        
+        self._resolve_formal_names_conflicts_lose_tracking = resolve_formal_names_conflicts_lose_tracking
         
     def __str__(self):
         return "update: %s, syms: %s" % (self.get_update_clauses(), self.get_updated_vars()) 
@@ -141,7 +144,16 @@ class ProcedureSummary(object):
         
     def substitute_formals(self, subst):
         assert set(subst.keys()) == set(self._formal_params)
-        assert set(subst.values()) & set(self._symbols_appearing_in_summary()) == set()
+        if not self._resolve_formal_names_conflicts_lose_tracking:
+            assert set(subst.values()) & set(self._symbols_appearing_in_summary()) == set()
+        else:
+            # TODO: ugly hack, used solely for bounded model checking
+            import ivy_utils
+            unique_renamer = ivy_utils.UniqueRenamer('bmc', list(self._symbols_appearing_in_summary()) + subst.keys())
+            subst_sanitized = {}
+            for k, s in subst.iteritems():
+                subst_sanitized[k] = ivy_transrel.rename(s, unique_renamer)
+            subst = subst_sanitized
         
         renamed_formals = [subst[s] for s in self._formal_params]
         
@@ -952,7 +964,8 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             
             procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action),
                                                          [update_clauses],
-                                                         updated_vars)
+                                                         updated_vars,
+                                                         resolve_formal_names_conflicts_lose_tracking=True)
             
         parent_action = self._actions_dict[cex_node.predicate]
         axioms = im.module.background_theory()
