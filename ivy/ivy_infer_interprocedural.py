@@ -247,10 +247,12 @@ calls_vars_renamer = CallsVarRenamer()
 # Used for interpreting the semantics of called procedures by their summary
 # Affects ivy_actions.CallAction.get_callee()
 class SummarizedActionsContext(ivy_actions.ActionContext):
-    def __init__(self, procedure_summaries):
+    def __init__(self, procedure_summaries, should_hide_callee_formals=False):
         super(SummarizedActionsContext, self).__init__()
         
         self._procedure_summaries = procedure_summaries
+        
+        self._should_hide_callee_formals = should_hide_callee_formals
         
     # Override
     def get(self, symbol):
@@ -260,7 +262,7 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         
     # Override
     def should_hide_applied_call_formals(self):
-        return False
+        return self._should_hide_callee_formals
     
     # Override
     def generate_unique_formals_renaming(self, call_action, formals, vocab):
@@ -616,8 +618,8 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
         
     return summary_obligations
 
-def get_proc_update_under_callees_summary(ivy_action, procedure_summaries):
-    with SummarizedActionsContext(procedure_summaries):
+def get_proc_update_under_callees_summary(ivy_action, procedure_summaries, hide_callee_formals=False):
+    with SummarizedActionsContext(procedure_summaries, hide_callee_formals):
         axioms = im.module.background_theory()
         # TODO: should not need to pass the axioms here, we conjoin with them later
         updated_syms, two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
@@ -842,7 +844,8 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         for name, summary in current_summaries.iteritems():
             ivy_action = self._actions_dict[name]
             updated_syms_overapproximation, _ = get_proc_update_under_callees_summary(ivy_action, 
-                                                                                      prev_summaries)
+                                                                                      prev_summaries,
+                                                                                      hide_callee_formals=True)
             # TODO: hold updated syms as a set rather than a list
             updated_syms_overapproximation = set(updated_syms_overapproximation)
             # Ensuring that the updated syms is monotonic between successive frames 
