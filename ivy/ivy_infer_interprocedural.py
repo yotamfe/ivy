@@ -257,6 +257,8 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
     # Override
     def get(self, symbol):
         original_action = ivy_module.find_action(symbol)
+        if self._should_inline_procedure(symbol):
+            return original_action
         return SummarizedAction(symbol, original_action, 
                                 self._procedure_summaries[symbol])
         
@@ -268,6 +270,15 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
     def generate_unique_formals_renaming(self, call_action, formals, vocab):
         global calls_vars_renamer
         return calls_vars_renamer.unique_formals(call_action, formals)
+    
+    def _should_inline_procedure(self, name):
+        return name in ["add",
+                        "add_container",
+                        "remove",
+                        "new_iterator",
+                        "new_container",
+                        "new_obj"
+                        ]
         
 def get_decomposed_cex_if_exists(ag, state_to_decompose, 
                                  interesting_actions,
