@@ -957,7 +957,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         parent_action = self._actions_dict[cex_node.predicate]
         axioms = im.module.background_theory()
             
-        with SummarizedActionsContext(procedure_summaries):
+        with SummarizedActionsContext(procedure_summaries, should_hide_callee_formals=True):
             (parent_updated_vars, parent_update_clauses) = get_action_two_vocabulary_clauses(parent_action, axioms)
             
         return (parent_update_clauses, parent_updated_vars)
