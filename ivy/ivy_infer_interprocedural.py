@@ -115,8 +115,9 @@ class ProcedureSummary(object):
         self._modify_clauses_according_to_updated_syms()
         
     def _strengthen_updated_syms(self, new_updated_syms): 
-        assert all(s in self.get_updated_vars() for s in new_updated_syms)
-        self._updated_syms = new_updated_syms
+        # TODO: hold a fixed precomputed set of updated symbols
+        # TODO: hold updated syms as a set...
+        self._updated_syms = filter(lambda s: s in new_updated_syms, self._updated_syms)
         
     # including both constants and relations!
     def get_updated_vars(self):
@@ -880,8 +881,6 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             updated_syms_overapproximation = set(updated_syms_overapproximation)
             # Ensuring that the updated syms is monotonic between successive frames 
             updated_syms_overapproximation |= set(prev_summaries[name].get_updated_vars())
-            updated_syms_overapproximation &= set(current_summaries[name].get_updated_vars())
-            # TODO: hold a fixed precomputed set of updated symbols
              
             logger.debug("Push updated symbols of %s in new frame: %s", name, updated_syms_overapproximation)
             summary.strengthen((ivy_logic_utils.true_clauses(),
