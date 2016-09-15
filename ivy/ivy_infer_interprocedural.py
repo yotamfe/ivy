@@ -744,13 +744,28 @@ def infer_safe_summaries():
     else:
         logger.info("Safe!")
         safe_frame = frame_or_cex
+	logger.info("Number of summaries: %s" % len(safe_frame))
         for name, summary in safe_frame.iteritems():
             logger.info("Summary of procedure %s:", name)
+	    clauses = summary.update_clauses_clauses()
+	    conjuncts_list = clauses.get_conjuncts_clauses_list()
+	    logger.info("Summary size: %d" % len(conjuncts_list))
+
+	    # find max clause size - currently not working
+	    #max_clause_size = 0
+	    #for clause in conjuncts_list:
+	    #    curr_size = len(clause.clauses)
+            #    if curr_size > max_clause_size:
+            #         max_clause_size = curr_size
+            #logger.info("Max clause size: %d" % max_clause_size)
             logger.info("%s" % summary.get_update_clauses())
             logger.info("")
             
     logging.info("Started in time: %s", start_time)
-    logging.info("End time: %s", datetime.datetime.now())
+    end_time = datetime.datetime.now()
+    logging.info("End time: %s", end_time)
+    logging.info("Total time: %s", (end_time - start_time).total_seconds())
+    logging.info("Total z3 calls: %d", ivy_solver.z3_counter)
         
 
 #     procedure_summaries = {}

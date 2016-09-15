@@ -24,6 +24,8 @@ import logic as lg
 
 use_z3_enums = False
 
+z3_counter = 0
+
 def set_use_native_enums(t):
     global use_z3_enums
     use_z3_enums = t
@@ -753,6 +755,9 @@ def clause_model_simp(m,c):
     return res
 
 def get_model_clauses(clauses1):
+    global z3_counter
+    z3_counter += 1
+
     s = z3.Solver()
     z3c = clauses_to_z3(clauses1)
     s.add(z3c)
@@ -808,10 +813,14 @@ def size_constraint(x, size):
     else:
         return lg.And()
 
-
 def model_if_none(clauses1,implied,model):
+    global z3_counter
+
     h = model
     if h == None:
+        # avoiding small model calculations
+        return get_model_clauses(clauses1)
+
         s = z3.Solver()
         z3c = clauses_to_z3(clauses1)
         s.add(z3c)
@@ -823,7 +832,9 @@ def model_if_none(clauses1,implied,model):
             for sort in ivy_logic.uninterpreted_sorts():
                 s.add(formula_to_z3(sort_size_constraint(sort,sort_size)))
             if s.check() != z3.unsat:
-                m = get_model(s)
+                z3_counter += 1
+                
+		m = get_model(s)
                 print "model = {}, size = {}".format(m,sort_size)
 ##        print "clauses1 = {}".format(clauses1)
 ##        print "z3c = {}".format(str(z3c))

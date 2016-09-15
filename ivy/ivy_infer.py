@@ -289,3 +289,5 @@ def pdr(pdr_elements):
             return (True, fixpoint_summaries)
         else:
             logger.debug("pdr frames not at fixpoint, continue unrolling")
+
+    logger.info("Max reached frame: %d" % current_bound)
