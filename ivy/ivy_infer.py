@@ -241,6 +241,29 @@ def backward_refine_frames_or_counterexample(frames, new_bound,
         if not successfully_blocked:
             # TODO: collect counter-trace
             return (False, cex)
+        
+def log_frames(frames, new_bound):
+    for i in xrange(0, new_bound):
+        logger.debug("Frame %d:", i)
+        summaries = frames[i].get_summaries_by_symbol_dict()
+        for name, summary in summaries.iteritems():
+            logger.debug("Summary of %s", name)
+            # TODO: this is very bad here, move to __str__ of summary
+            logger.debug("Updated syms: %s", summary.get_updated_vars())
+            for clause in summary.update_clauses_clauses().get_conjuncts_clauses_list():
+                logger.debug("Summary clause: %s", clause)
+        
+def assert_frames_monotonicity(frames, max_frame):
+    for i in xrange(1, max_frame-1):
+        cur_summaries = frames[i].get_summaries_by_symbol_dict()
+        next_summaries = frames[i+1].get_summaries_by_symbol_dict()
+        assert set(cur_summaries.keys()) == set(next_summaries.keys())
+        for predicate in cur_summaries.iterkeys():
+            if not cur_summaries[predicate].implies(next_summaries[predicate]):
+                logger.debug("Frame %s-%s not monotonic on predicate %s", i, i+1, predicate)
+                logger.debug("Frame %s: %s", i, cur_summaries[predicate])
+                logger.debug("Frame %s: %s", i, next_summaries[predicate])
+                assert False
 
 def pdr(pdr_elements):
     frames = []
@@ -265,15 +288,9 @@ def pdr(pdr_elements):
                                                          frames[i+1].get_summaries_by_symbol_dict())
             frames[i+1] = PdrFrame(pushed_summaries)
         logger.debug("End pushing lemmas forward")
-        for i in xrange(0, new_bound):
-            logger.debug("Frame %d:", i)
-            summaries = frames[i].get_summaries_by_symbol_dict()
-            for name, summary in summaries.iteritems():
-                logger.debug("Summary of %s", name)
-                # TODO: this is very bad here, move to __str__ of summary
-                logger.debug("Updated syms: %s", summary.get_updated_vars())
-                for clause in summary.update_clauses_clauses().get_conjuncts_clauses_list():
-                    logger.debug("Summary clause: %s", clause)
+        
+        log_frames(frames, new_bound)            
+        # assert_frames_monotonicity(frames, new_bound)
        
         (successfully_blocked, cex) = backward_refine_frames_or_counterexample(frames, new_bound, pdr_elements)
         if not successfully_blocked:
