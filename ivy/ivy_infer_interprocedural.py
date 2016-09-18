@@ -293,6 +293,19 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
                         "new_obj"
                         ]
         
+class ProofObligation(object):
+    def __init__(self, proof_obligation_clauses):
+        self._proof_obligation = proof_obligation_clauses
+        
+    def get_proof_obligation(self):
+        return self._proof_obligation
+        
+class UnivProofObligation(ProofObligation):
+    def __init__(self, concrete_summary, universal_transition_summary):
+        super(UnivProofObligation, self).__init__(universal_transition_summary)
+        
+        self._transition_state = concrete_summary
+                
 def get_decomposed_cex_if_exists(ag, state_to_decompose,
                                  is_interesting_action, 
                                  decomposition_must_exist=False):
@@ -643,7 +656,7 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
         universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(concrete_summary, 
                                                                                                         model=None))
         
-        res = universal_transition_summary
+        res = UnivProofObligation(concrete_summary, universal_transition_summary)
         
         summary_obligations.append((call_action.callee_name(), res))
         
@@ -707,6 +720,8 @@ def check_procedure_transition(ivy_action, proc_name,
 def generelize_summary_blocking(ivy_action, proc_name, 
                                 procedure_summaries, proof_obligation):
     assert proof_obligation is not None
+    proof_obligation = proof_obligation.get_proof_obligation()
+    
     axioms = im.module.background_theory()
     
     updated_syms, two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
@@ -941,6 +956,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
                                             proof_obligation):
         procedure_name_to_check = predicate
         procedure_summaries = summaries_by_symbol
+        proof_obligation = proof_obligation.get_proof_obligation()
         
         ivy_action = self._actions_dict[procedure_name_to_check]
         
