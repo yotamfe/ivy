@@ -192,6 +192,9 @@ def backwards_try_prove_single_goal(predicate, summary_proof_obligation,
                                                                                           previous_bound_proof_obligation, pdr_elements,
                                                                                           predicate)
         if not successfully_blocked_in_previous_frame:
+            pdr_elements.mark_reachable(predicate, summary_proof_obligation, 
+                                        frames[current_bound].get_summaries_by_symbol_dict(),
+                                        cex)
             return (False, cex)
         else:
             assert cex is None
@@ -216,10 +219,6 @@ def backwards_prove_at_least_one_goal(frames, current_bound,
         if not successfully_blocked_this_predicate:
             assert sub_cex is not None
             cex.add_child(sub_cex)
-            
-            pdr_elements.mark_reachable(predicate, summary_proof_obligation, 
-                                        frames[current_bound].get_summaries_by_symbol_dict(),
-                                        cex)
             
             continue
         
