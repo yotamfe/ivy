@@ -333,7 +333,7 @@ class UnivProofObligation(object):
         return self._transition_state
     
     def __str__(self):
-        return self.get_proof_obligation()
+        return str(self.get_proof_obligation())
                 
 def get_decomposed_cex_if_exists(ag, state_to_decompose,
                                  is_interesting_action, 
