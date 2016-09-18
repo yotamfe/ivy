@@ -74,7 +74,7 @@ class ProcedureSummary(object):
         self._resolve_formal_names_conflicts_lose_tracking = resolve_formal_names_conflicts_lose_tracking
         
         # TODO: this is a convenient place to put this but it doesn't make much sense
-        self._reachable_states = []
+        self._reachable_states = set()
         
     def __str__(self):
         return "update: %s, syms: %s" % (self.get_update_clauses(), self.get_updated_vars()) 
@@ -176,9 +176,13 @@ class ProcedureSummary(object):
                                 renamed_updated_syms)
         
     def add_to_reachable_cache(self, transition_clauses, cex_info):
-        self._reachable_states.append((transition_clauses, cex_info))
+        self._reachable_states.add((transition_clauses, cex_info))
+        
+    def add_to_cache_from_summary_cache(self, other_summary):
+        self._reachable_states |= other_summary._reachable_states
         
     def reachability_info_from_cache(self, proof_obligation_clauses):
+        logger.debug("Number of cexs in cache: %d", size(self._reachable_states))
         bad_clauses = ivy_logic_utils.dual_clauses(proof_obligation_clauses)
         
         for (transition_clauses, cex_info) in self._reachable_states:
@@ -935,6 +939,8 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             updated_syms_overapproximation, _ = get_proc_update_under_callees_summary(ivy_action, 
                                                                                       prev_summaries,
                                                                                       hide_callee_formals=True)
+            summary.add_to_cache_from_summary_cache(prev_summaries[name])
+            
             # TODO: hold updated syms as a set rather than a list
             updated_syms_overapproximation = set(updated_syms_overapproximation)
             # Ensuring that the updated syms is monotonic between successive frames 
