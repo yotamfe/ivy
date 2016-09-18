@@ -73,6 +73,9 @@ class ProcedureSummary(object):
         
         self._resolve_formal_names_conflicts_lose_tracking = resolve_formal_names_conflicts_lose_tracking
         
+        # TODO: this is a convenient place to put this but it doesn't make much sense
+        self._reachable_states = []
+        
     def __str__(self):
         return "update: %s, syms: %s" % (self.get_update_clauses(), self.get_updated_vars()) 
         
@@ -171,6 +174,20 @@ class ProcedureSummary(object):
         return ProcedureSummary(renamed_formals,
                                 renamed_update_clauses_lst,
                                 renamed_updated_syms)
+        
+    def add_to_reachable_cache(self, transition_clauses, cex_info):
+        self._reachable_states.append((transition_clauses, cex_info))
+        
+    def reachability_info_from_cache(self, proof_obligation_clauses):
+        bad_clauses = ivy_logic_utils.dual_clauses(proof_obligation_clauses)
+        
+        for (transition_clauses, cex_info) in self._reachable_states:
+            transition_is_bad_clauses = ivy_transrel.conjoin(transition_clauses,
+                                                             bad_clauses)
+            if ivy_solver.clauses_sat(transition_is_bad_clauses):
+                return (True, cex_info)
+            
+        return (False, None)
 
 class SummarizedAction(ivy_actions.Action):
     def __init__(self, name, original_action, procedure_summary):
@@ -256,6 +273,14 @@ class CallsVarRenamer(object):
         
         
 calls_vars_renamer = CallsVarRenamer()
+
+class InterproceduralUpdates(object):
+    def __init__(self):
+        super(InterproceduralUpdates, self).__init__()
+        
+    def get_update(self, name, ivy_action, procedure_summaries, should_hide_callee_formals):
+        #with SummarizedActionsContext()
+        pass
     
 # Used for interpreting the semantics of called procedures by their summary
 # Affects ivy_actions.CallAction.get_callee()
@@ -293,18 +318,22 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
                         "new_obj"
                         ]
         
-class ProofObligation(object):
-    def __init__(self, proof_obligation_clauses):
-        self._proof_obligation = proof_obligation_clauses
+class UnivProofObligation(object):
+    def __init__(self, concrete_summary, universal_transition_summary):
+        # the universal transition summary is the generalization of concrete_summary
+        # TODO: move diagram etc. to here
+        self._proof_obligation = universal_transition_summary
+        
+        self._transition_state = concrete_summary
         
     def get_proof_obligation(self):
         return self._proof_obligation
         
-class UnivProofObligation(ProofObligation):
-    def __init__(self, concrete_summary, universal_transition_summary):
-        super(UnivProofObligation, self).__init__(universal_transition_summary)
-        
-        self._transition_state = concrete_summary
+    def get_original_state(self):
+        return self._transition_state
+    
+    def __str__(self):
+        return self.get_proof_obligation()
                 
 def get_decomposed_cex_if_exists(ag, state_to_decompose,
                                  is_interesting_action, 
@@ -975,6 +1004,17 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         return generelize_summary_blocking(self._actions_dict[predicate], predicate,
                                            summaries,
                                            proof_obligation)
+        
+    def mark_reachable(self, predicate, summary_proof_obligation, 
+                       summaries, cex_info):
+        reachable_transition = summary_proof_obligation.get_original_state()
+        summaries[predicate].add_to_reachable_cache(reachable_transition,
+                                                    cex_info)
+    
+    def is_known_to_be_reachable(self, predicate, summary_proof_obligation,
+                                 summaries):
+        proof_obligation_clauses = summary_proof_obligation.get_proof_obligation()
+        return summaries[predicate].reachability_info_from_cache(proof_obligation_clauses)
         
     def _get_call_tree_summary(self, cex_node):
         procedure_summaries = {}

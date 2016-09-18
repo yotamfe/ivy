@@ -97,6 +97,16 @@ class PdrElements(object):
     @abc.abstractmethod
     def push_forward(self, prev_summaries, current_summaries):
         pass
+    
+    @abc.abstractmethod
+    def mark_reachable(self, predicate, summary_proof_obligation, 
+                       summaries, cex_info):
+        pass
+    
+    @abc.abstractmethod
+    def is_known_to_be_reachable(self, predicate, summary_proof_obligation,
+                                 summaries):
+        pass
 
     
 class PredicateSummary(object):
@@ -160,6 +170,11 @@ def backwards_try_prove_single_goal(predicate, summary_proof_obligation,
     if current_bound == 0:
         logger.debug("Dead end: nowhere to go from frame 0...")
         return False
+    
+    is_known_reachable, cex_info = pdr_elements.is_known_to_be_reachable(predicate, summary_proof_obligation,
+                                                                         frames[current_bound].get_summaries_by_symbol_dict())
+    if is_known_reachable:
+        return (False, cex_info)
    
     previous_bound = current_bound - 1
    
@@ -202,13 +217,17 @@ def backwards_prove_at_least_one_goal(frames, current_bound,
             assert sub_cex is not None
             cex.add_child(sub_cex)
             
+            pdr_elements.mark_reachable(predicate, summary_proof_obligation, 
+                                        frames[current_bound].get_summaries_by_symbol_dict(),
+                                        cex)
+            
             continue
         
         summary_proof_obligation_generalization = pdr_elements.generalize_intransformability(predicate,
                                                                                              frames[current_bound-1].get_summaries_by_symbol_dict(),
                                                                                              summary_proof_obligation)
         logger.debug("pdr strenghtening frames for %s up to bound %d with %s", 
-                         predicate, current_bound, summary_proof_obligation_generalization)
+                    predicate, current_bound, summary_proof_obligation_generalization)
         for i in xrange(1, current_bound + 1):
             frames[i].strengthen(predicate, summary_proof_obligation_generalization)
            

@@ -169,6 +169,14 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
                                                             ivy_logic_utils.dual_clauses(proof_obligation), 
                                                             None))]
         
+    def mark_reachable(self, predicate, summary_proof_obligation, 
+                       summaries, cex_info):
+        pass
+    
+    def is_known_to_be_reachable(self, predicate, summary_proof_obligation,
+                                 summaries):
+        return False
+        
     def generalize_intransformability(self, predicate, prestate_summaries, poststate_clauses):
         import ivy_ui
         import ivy_logic as il
