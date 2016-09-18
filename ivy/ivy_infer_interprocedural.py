@@ -182,7 +182,7 @@ class ProcedureSummary(object):
         self._reachable_states |= other_summary._reachable_states
         
     def reachability_info_from_cache(self, proof_obligation_clauses):
-        logger.debug("Number of cexs in cache: %d", size(self._reachable_states))
+        logger.debug("Number of cexs in cache: %d", len(self._reachable_states))
         bad_clauses = ivy_logic_utils.dual_clauses(proof_obligation_clauses)
         
         for (transition_clauses, cex_info) in self._reachable_states:
