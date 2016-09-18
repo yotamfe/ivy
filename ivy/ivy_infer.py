@@ -174,6 +174,7 @@ def backwards_try_prove_single_goal(predicate, summary_proof_obligation,
     is_known_reachable, cex_info = pdr_elements.is_known_to_be_reachable(predicate, summary_proof_obligation,
                                                                          frames[current_bound].get_summaries_by_symbol_dict())
     if is_known_reachable:
+        logger.debug("Reachability cache hit: predicate %s, obligation %s", predicate, summary_proof_obligation)
         return (False, cex_info)
    
     previous_bound = current_bound - 1
