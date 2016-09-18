@@ -221,6 +221,10 @@ def backwards_prove_at_least_one_goal(frames, current_bound,
             assert sub_cex is not None
             cex.add_child(sub_cex)
             
+            pdr_elements.mark_reachable(predicate, summary_proof_obligation, 
+                                        frames[current_bound].get_summaries_by_symbol_dict(),
+                                        sub_cex)
+            
             continue
         
         summary_proof_obligation_generalization = pdr_elements.generalize_intransformability(predicate,
