@@ -642,52 +642,51 @@ def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
         
         if subprocedures_transitions is None:
             return None
-    
-    for call_action, before_state, after_state in subprocedures_transitions:
-        symbols_updated_in_the_transition = procedure_summaries[call_action.callee_name()].get_updated_vars()
         
-        clauses_renamed_lst, call_action_renamed = rename_callee_formals_back([before_state.clauses, after_state.clauses],
-                                                                              call_action)
-        before_clauses_callee_vocab = clauses_renamed_lst[0]
-        after_clauses_callee_vocab = clauses_renamed_lst[1]
-        assert is_pre_vocabulary(before_clauses_callee_vocab)
-        assert is_pre_vocabulary(after_clauses_callee_vocab)
-        
-        ag_call_decomposition = ag_from_pre_and_post_clauses(call_action_renamed, 
-                                                             before_clauses_callee_vocab, 
-                                                             after_clauses_callee_vocab)
-        summarized_actions_transitions = get_decomposed_cex_if_exists(ag_call_decomposition, 
-                                                                      ag_call_decomposition.states[-1],
-                                                                      lambda action: isinstance(action, SummarizedAction),
-                                                                      decomposition_must_exist=True)
-        assert len(summarized_actions_transitions) == 1, summarized_actions_transitions
-        summarized_transition = summarized_actions_transitions[0]
-        before_clauses_callee_vocab = summarized_transition[1].clauses
-        after_clauses_callee_vocab = summarized_transition[2].clauses
-        
-        logger.debug("Pure transition before clauses: %s", before_clauses_callee_vocab)
-        logger.debug("Pure transition after clauses: %s", after_clauses_callee_vocab)
+        for call_action, before_state, after_state in subprocedures_transitions:
+            symbols_updated_in_the_transition = procedure_summaries[call_action.callee_name()].get_updated_vars()
+            
+            clauses_renamed_lst, call_action_renamed = rename_callee_formals_back([before_state.clauses, after_state.clauses],
+                                                                                  call_action)
+            before_clauses_callee_vocab = clauses_renamed_lst[0]
+            after_clauses_callee_vocab = clauses_renamed_lst[1]
+            assert is_pre_vocabulary(before_clauses_callee_vocab)
+            assert is_pre_vocabulary(after_clauses_callee_vocab)
+            
+            ag_call_decomposition = ag_from_pre_and_post_clauses(call_action_renamed, 
+                                                                 before_clauses_callee_vocab, 
+                                                                 after_clauses_callee_vocab)
+            summarized_actions_transitions = get_decomposed_cex_if_exists(ag_call_decomposition, 
+                                                                          ag_call_decomposition.states[-1],
+                                                                          lambda action: isinstance(action, SummarizedAction),
+                                                                          decomposition_must_exist=True)
+            assert len(summarized_actions_transitions) == 1, summarized_actions_transitions
+            summarized_transition = summarized_actions_transitions[0]
+            before_clauses_callee_vocab = summarized_transition[1].clauses
+            after_clauses_callee_vocab = summarized_transition[2].clauses
+            
+            logger.debug("Pure transition before clauses: %s", before_clauses_callee_vocab)
+            logger.debug("Pure transition after clauses: %s", after_clauses_callee_vocab)
 
-        transition_summary = ivy_transrel.conjoin(before_clauses_callee_vocab, 
-                                                  clauses_to_new_vocabulary(after_clauses_callee_vocab))
-        
-        assert ivy_solver.clauses_sat(transition_summary)
-        
-        logger.debug("Transition summary: %s", transition_summary)
-        summary_in_vocab = transform_to_callee_summary_vocabulary(transition_summary, 
-                                                                   call_action,
-                                                                   symbols_updated_in_the_transition)
-        
-        concrete_summary = concretize(summary_in_vocab, symbols_updated_in_the_transition,
-                                      get_signature_symbols()) # TODO: also concretize the formals
-        
-        # TODO: use utils from ivy_infer_universal
-        universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(concrete_summary, 
-                                                                                                        model=None))
-        
-        res = UnivProofObligation(concrete_summary, universal_transition_summary)
-        
-        summary_obligations.append((call_action.callee_name(), res))
+            transition_summary = ivy_transrel.conjoin(before_clauses_callee_vocab, 
+                                                      clauses_to_new_vocabulary(after_clauses_callee_vocab))
+            
+            assert ivy_solver.clauses_sat(transition_summary)
+            
+            logger.debug("Transition summary: %s", transition_summary)
+            summary_in_vocab = transform_to_callee_summary_vocabulary(transition_summary, 
+                                                                       call_action,
+                                                                       symbols_updated_in_the_transition)
+            
+            concrete_summary = concretize(summary_in_vocab, symbols_updated_in_the_transition,
+                                          get_signature_symbols()) # TODO: also concretize the formals
+            
+            # TODO: use utils from ivy_infer_universal
+            universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(concrete_summary, 
+                                                                                                            model=None))
+            res = UnivProofObligation(concrete_summary, universal_transition_summary)
+            
+            summary_obligations.append((call_action.callee_name(), res))
         
     return summary_obligations
 
