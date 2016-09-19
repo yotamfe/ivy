@@ -74,8 +74,7 @@ class ProcedureSummary(object):
         self._resolve_formal_names_conflicts_lose_tracking = resolve_formal_names_conflicts_lose_tracking
         
         # TODO: this is a convenient place to put this but it doesn't make much sense
-        # map contains hit count for every reachable state
-        self._reachable_states = dict()
+        self._reachable_states = set()
         
     def __str__(self):
         return "update: %s, syms: %s" % (self.get_update_clauses(), self.get_updated_vars()) 
@@ -177,25 +176,19 @@ class ProcedureSummary(object):
                                 renamed_updated_syms)
         
     def add_to_reachable_cache(self, transition_clauses, cex_info):
-        self._reachable_states[(transition_clauses, cex_info)] = 0
+        self._reachable_states.add((transition_clauses, cex_info))
         
     def add_to_cache_from_summary_cache(self, other_summary):
-        self._reachable_states = {key: self._reachable_states.get(key, 0) + \
-                                       other_summary._reachable_states.get(key, 0)
-                                       for key in set(self._reachable_states.keys() + other_summary._reachable_states.keys())}
+        self._reachable_states |= other_summary._reachable_states
         
     def reachability_info_from_cache(self, proof_obligation_clauses):
         logger.debug("Number of cexs in cache: %d", len(self._reachable_states))
         bad_clauses = ivy_logic_utils.dual_clauses(proof_obligation_clauses)
         
-        # TODO: extract functions etc...
-        for (transition_clauses, cex_info), _ in sorted(self._reachable_states.items(),
-                                                        key=lambda x: x[1],
-                                                        reverse=True):
+        for (transition_clauses, cex_info) in self._reachable_states:
             transition_is_bad_clauses = ivy_transrel.conjoin(transition_clauses,
                                                              bad_clauses)
             if ivy_solver.clauses_sat(transition_is_bad_clauses):
-                self._reachable_states[(transition_clauses, cex_info)] += 1
                 return (True, cex_info)
             
         return (False, None)
