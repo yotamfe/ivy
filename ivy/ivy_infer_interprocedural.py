@@ -75,7 +75,6 @@ class ProcedureSummary(object):
         
         # TODO: this is a convenient place to put this but it doesn't make much sense
         self._reachable_states = set()
-        self._reachable_states_clauses = ivy_logic_utils.false_clauses()
         
     def __str__(self):
         return "update: %s, syms: %s" % (self.get_update_clauses(), self.get_updated_vars()) 
@@ -178,22 +177,19 @@ class ProcedureSummary(object):
         
     def add_to_reachable_cache(self, transition_clauses, cex_info):
         self._reachable_states.add((transition_clauses, cex_info))
-        self._reachable_states_clauses = ivy_logic_utils.or_clauses(self._reachable_states_clauses,
-                                                                    transition_clauses)
         
     def add_to_cache_from_summary_cache(self, other_summary):
         self._reachable_states |= other_summary._reachable_states
-        self._reachable_states_clauses = ivy_logic_utils.or_clauses(ivy_logic_utils.false_clauses(),
-                                                                    *[r[0] for r in self._reachable_states])
         
     def reachability_info_from_cache(self, proof_obligation_clauses):
         logger.debug("Number of cexs in cache: %d", len(self._reachable_states))
         bad_clauses = ivy_logic_utils.dual_clauses(proof_obligation_clauses)
-
-        transition_is_bad_clauses = ivy_transrel.conjoin(self._reachable_states_clauses,
-                                                         bad_clauses)
-        if ivy_solver.clauses_sat(transition_is_bad_clauses):
-            return (True, next(iter(self._reachable_states))[0]) # TODO: return a promise of a cex
+        
+        for (transition_clauses, cex_info) in self._reachable_states:
+            transition_is_bad_clauses = ivy_transrel.conjoin(transition_clauses,
+                                                             bad_clauses)
+            if ivy_solver.clauses_sat(transition_is_bad_clauses):
+                return (True, cex_info)
             
         return (False, None)
 
