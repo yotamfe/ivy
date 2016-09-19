@@ -89,10 +89,6 @@ class PdrElements(object):
     @abc.abstractmethod
     def generalize_intransformability(self, prestate_summaries, poststate_clauses):
         pass       
-           
-    @abc.abstractmethod
-    def unrolled_summary(self, previous_bound_summmaries):
-        pass
     
     @abc.abstractmethod
     def push_forward(self, prev_summaries, current_summaries):
@@ -295,15 +291,10 @@ def pdr(pdr_elements):
     current_bound = 0
    
     while True:
-        previous_summaries = frames[current_bound].get_summaries_by_symbol_dict()
         logger.debug("pdr: unroll to %d. Time: %s", current_bound + 1, datetime.datetime.now())
         
         new_bound = current_bound + 1
         frames.insert(new_bound, PdrFrame(pdr_elements.top_summary()))
-            
-#         else:
-#             initial_new_frame = PdrFrame(pdr_elements.unrolled_summary(previous_summaries))
-#             frames.insert(new_bound, initial_new_frame)
 
         logger.debug("Begin pushing lemmas forward")
         for i in xrange(1, new_bound):

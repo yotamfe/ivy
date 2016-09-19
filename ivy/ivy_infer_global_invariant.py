@@ -131,10 +131,6 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
     def top_summary(self):
         return {"inv": ivy_infer.PredicateSummary("inv", ivy_logic_utils.true_clauses())}
     
-    def unrolled_summary(self, previous_bound_summmaries):
-        # simplest implementation, not pushing anything forward
-        return self.top_summary()
-    
     def push_forward(self, prev_summaries, current_summaries):
         # simplest implementation, not pushing anything forward
         return current_summaries

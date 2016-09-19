@@ -904,35 +904,6 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             
         return procedure_summaries
     
-    def unrolled_summary(self, previous_bound_summmaries):
-        procedure_summaries = {}
-        
-        for name, ivy_action in self._actions_dict.iteritems():
-            ivy_action = self._actions_dict[name]
-            updated_syms_overapproximation, _ = get_proc_update_under_callees_summary(ivy_action, 
-                                                                                      previous_bound_summmaries)
-            
-            logger.debug("Push updated symbols of %s in new frame: %s", name, updated_syms_overapproximation)
-            
-            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action),
-                                                         updated_syms=updated_syms_overapproximation)
-            
-            # TODO: convert according to the previous frame updated symbols?
-#             previous_clauses = previous_bound_summmaries[name].get_update_clauses()
-#             # TODO: optimize, no need to generate proof goals
-#             relative_ind_goals = check_procedure_transition(ivy_action, name, 
-#                                                             previous_bound_summmaries,
-#                                                             previous_clauses)
-#             if relative_ind_goals is None:
-#                 logger.debug("Summary of %s pushed to next frame: %s", name, previous_clauses)
-#                 summary.strengthen((previous_clauses, updated_syms_overapproximation))
-#             else:
-#                 logger.debug("Couldn't push summary for %s: %s", name, previous_clauses)
-#                 
-#             logger.debug("Unrolled summary of %s: %s", name, summary)
-        
-        return procedure_summaries
-    
     def push_forward(self, prev_summaries, current_summaries):
         for name, summary in current_summaries.iteritems():
             ivy_action = self._actions_dict[name]
