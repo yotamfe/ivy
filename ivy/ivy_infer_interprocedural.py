@@ -177,12 +177,15 @@ class ProcedureSummary(object):
                                 renamed_update_clauses_lst,
                                 renamed_updated_syms)
         
+    def so_pred_params(self):
+        return self._summary_vocab + [ivy_transrel.new(s) for s in self._summary_vocab]
+        
     def update_vocab_renamed_by_second_order_application(self, applied_terms):
-        subst = dict(zip(self._summary_vocab, applied_terms)) # TODO: two vocab!
+        subst = dict(zip(self.so_pred_params(), applied_terms)) # TODO: two vocab!
         return ivy_logic_utils.rename_clauses(self.get_update_clauses(), subst)
     
     def update_vars_renamed_by_second_order_application(self, applied_terms):
-        subst = dict(zip(self._summary_vocab, applied_terms)) # TODO: two vocab!
+        subst = dict(zip(self.so_pred_params(), applied_terms)) # TODO: two vocab!
         return [apply_dict_if_in_domain(s, subst) for s in self.get_updated_vars()]
         
     def add_to_reachable_cache(self, transition_clauses, cex_info):
@@ -226,7 +229,7 @@ class SummarizedAction(ivy_actions.Action):
         # TODO: remove
         self._lazy_summary_application = lazy_summary_application
             
-        summary_params = self._procedure_summary._summary_vocab
+        summary_params = self._procedure_summary.so_pred_params()
         so_pred_sort = logic.FunctionSort(*([s.sort for s in summary_params] + [logic.Boolean]))
         so_predicate = logic.Const('sop_%s' % name, so_pred_sort)
         self._so_pred_on_vocab = so_predicate(*summary_params)
