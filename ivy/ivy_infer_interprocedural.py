@@ -640,7 +640,7 @@ def updated_vars_predicate_summary(formula, procedure_summaries):
 
 def get_updated_vars_of_summaries(formula, procedure_summaries):
     if is_second_order_pred_application(formula):
-        return updated_vars_predicate_summary(formula, procedure_summaries) 
+        return set(updated_vars_predicate_summary(formula, procedure_summaries)) 
     
     res = set()
     for arg in formula.args:
@@ -651,9 +651,8 @@ def apply_procedure_summaries_to_second_order_summaries(procedure_summaries,
                                                         base_updated_syms, clauses):
     res_clauses = clauses.apply(apply_summaries_to_formula, procedure_summaries)
     
-    updated_syms_from_summaries = set().union(*clauses.gen(get_updated_vars_of_summaries, 
-                                                           procedure_summaries))
-    all_updated_syms = set(base_updated_syms) | updated_syms_from_summaries
+    summary_updated_syms =  set(clauses.gen(get_updated_vars_of_summaries, procedure_summaries))
+    all_updated_syms = set(base_updated_syms) | summary_updated_syms
     
     return list(all_updated_syms), res_clauses
 
