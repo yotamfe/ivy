@@ -637,17 +637,23 @@ def apply_summaries_to_formula(formula, procedure_summaries):
                 for arg in formula.args]
     return formula.clone(args)
 
+def get_second_order_application(formula):
+    if is_second_order_pred_application(formula):
+        return [formula]
+    
+    res = []
+    for arg in formula.args:
+        res += get_second_order_application(arg)
+    return res
+
 def updated_vars_predicate_summary(formula, procedure_summaries):
     summary = summary_by_second_order_pred(formula, procedure_summaries)
-    return summary.update_vars_renamed_by_second_order_application(formula.terms)
+    return set(summary.update_vars_renamed_by_second_order_application(formula.terms))
 
-def get_updated_vars_of_summaries(formula, procedure_summaries):
-    if is_second_order_pred_application(formula):
-        return set(updated_vars_predicate_summary(formula, procedure_summaries)) 
-    
+def get_updated_vars_of_summaries(formula, procedure_summaries):    
     res = set()
-    for arg in formula.args:
-        res |= get_updated_vars_of_summaries(arg, procedure_summaries)
+    for so_app in get_second_order_application(formula):
+        res |= updated_vars_predicate_summary(so_app, procedure_summaries)
     return res
     
 def apply_procedure_summaries_to_second_order_summaries(procedure_summaries, 
