@@ -193,8 +193,10 @@ class ProcedureSummary(object):
             
         return (False, None)
 
+
 class SummarizedAction(ivy_actions.Action):
-    def __init__(self, name, original_action, procedure_summary):
+    def __init__(self, name, original_action, procedure_summary,
+                 lazy_summary_application=False):
         super(SummarizedAction, self).__init__()
         
         self._procedure_summary = procedure_summary
@@ -208,24 +210,41 @@ class SummarizedAction(ivy_actions.Action):
         if hasattr(original_action,'formal_returns'):
             self.formal_returns = original_action.formal_returns
             
+        # TODO: remove
+        self._lazy_summary_application = lazy_summary_application
+            
+        summary_params = self._procedure_summary._summary_vocab
+        so_pred_sort = logic.FunctionSort(*([s.sort for s in summary_params] + [logic.Boolean]))
+        so_predicate = logic.Const('sop_%s' % name, so_pred_sort)
+        self._so_pred_on_vocab = so_predicate(*summary_params)
+        logger.debug("so pred on vocab: %s", self._so_pred_on_vocab)
+        
+            
     def name(self):
         return self._name
             
     # Override AST.clone()
     def clone(self,args):
         return SummarizedAction(self._name, self._original_action, 
-                                self._procedure_summary)
+                                self._procedure_summary,
+                                lazy_summary_application=self._lazy_summary_application)
         
     def substitute(self, subst):
         return SummarizedAction(self._name, 
                                 self._original_action.substitute(subst),
-                                self._procedure_summary.substitute_formals(subst))
+                                self._procedure_summary.substitute_formals(subst),
+                                lazy_summary_application=self._lazy_summary_application)
             
     # Override
     def int_update(self, domain, in_scope):
-        updated  = self._procedure_summary.get_updated_vars()
-        clauses  = self._procedure_summary.get_update_clauses()
-        pre      = self._procedure_summary.get_precondition()
+        if not self._lazy_summary_application:
+            updated  = self._procedure_summary.get_updated_vars()
+            clauses  = self._procedure_summary.get_update_clauses()
+            pre      = self._procedure_summary.get_precondition()
+        else:
+            updated  = self._procedure_summary.get_updated_vars()
+            clauses  = self._so_pred_on_vocab
+            pre      = ivy_logic_utils.true_clauses()
         return (updated, clauses, pre)
 
 class CallsVarRenamer(object):
@@ -289,12 +308,16 @@ class InterproceduralUpdates(object):
 # Used for interpreting the semantics of called procedures by their summary
 # Affects ivy_actions.CallAction.get_callee()
 class SummarizedActionsContext(ivy_actions.ActionContext):
-    def __init__(self, procedure_summaries, should_hide_callee_formals=False):
+    def __init__(self, procedure_summaries, should_hide_callee_formals=False,
+                 lazy_summary_application=False):
         super(SummarizedActionsContext, self).__init__()
         
         self._procedure_summaries = procedure_summaries
         
         self._should_hide_callee_formals = should_hide_callee_formals
+        
+        # TODO: remove!
+        self._lazy_summary_application = lazy_summary_application
         
     # Override
     def get(self, symbol):
@@ -302,7 +325,8 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         if self._should_inline_procedure(symbol):
             return original_action
         return SummarizedAction(symbol, original_action, 
-                                self._procedure_summaries[symbol])
+                                self._procedure_summaries[symbol],
+                                lazy_summary_application=self._lazy_summary_application)
         
     # Override
     def should_hide_applied_call_formals(self):
@@ -567,13 +591,48 @@ def get_action_two_vocabulary_clauses(ivy_action, axioms):
     res = ivy_transrel.conjoin(pre, clauses_new_vocab)
     logger.debug("two vocab for procedure: %s", res)
     return updated, res
+
+def apply_summaries_to_formula(formula, procedure_summaries):
+    if isinstance(formula, logic.Apply):
+        logger.debug("hi3")
+        applied_sorts = [t.sort for t in formula.terms]
+        if any(not ivy_logic.is_first_order_sort(s) for s in applied_sorts):
+            logger.debug("Found second order predicate, %s", formula)
+            assert False
+        
+    # based on ivy_logic_utils.rename_ast
+    args = [apply_summaries_to_formula(arg, procedure_summaries)
+                for arg in formula.args]
+    return formula.clone(args)
+
+    # based on ivy_logic_utils.rename_ast
+    if isinstance(formula, logic.Apply):
+        if not formula.args:
+            logger.debug("hi")
+            return formula
+        logger.debug("hi2, %s", type(formula))
+        return type(formula)(*[apply_summaries_to_formula(arg, procedure_summaries)
+                                for arg in formula.args])
+    return formula
     
+def apply_procedure_summaries_to_second_order_summaries(procedure_summaries, 
+                                                        base_updated_syms, clauses):
+    #updated_syms_from_summaries, res_clauses = clauses.apply(apply_summaries_to_formula, procedure_summaries)
+    res_clauses = clauses.apply(apply_summaries_to_formula, procedure_summaries)
+    
+    #updated_syms_from_summaries = clauses.apply(get_updated_syms_of_summaries, procedure_summaries)
+    updated_syms_from_summaries = set()
+    
+    all_updated_syms = set(base_updated_syms) | updated_syms_from_summaries
+    
+    return list(all_updated_syms), res_clauses
 
 def get_two_vocab_transition_clauses_wrt_summary(ivy_action, procedure_summaries, axioms):
-    with SummarizedActionsContext(procedure_summaries):
-        res = get_action_two_vocabulary_clauses(ivy_action, axioms)
+    with SummarizedActionsContext(procedure_summaries, lazy_summary_application=True):
+        base_updated_syms, clauses = get_action_two_vocabulary_clauses(ivy_action, axioms)
         
-    return res
+    return apply_procedure_summaries_to_second_order_summaries(procedure_summaries, 
+                                                               base_updated_syms, clauses)
 
 def two_vocab_respecting_non_updated_syms(two_vocab_clauses, updated_syms):
     return clauses_from_new_vocabulary_except_for(two_vocab_clauses, updated_syms)

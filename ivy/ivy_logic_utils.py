@@ -184,6 +184,8 @@ def rename_ast(ast,subs):
     """
     args = [rename_ast(x,subs) for x in ast.args]
     if is_app(ast):
+        if not ast.args:
+            return subs.get(ast.rep,ast.rep)
         return subs.get(ast.rep,ast.rep)(*args)
     return ast.clone(args)
 

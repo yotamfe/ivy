@@ -38,8 +38,8 @@ class FunctionSort(recstruct('FunctionSort', [], ['*sorts'])):
     def _preprocess_(cls, *sorts):
         if len(sorts) == 0:
             raise IvyError("Must have range sort")
-        if any(not first_order_sort(s) for s in sorts):
-            raise IvyError("No high order functions")
+#         if any(not first_order_sort(s) for s in sorts):
+#             raise IvyError("No high order functions")
         return sorts
     def __str__(self):
         return ' * '.join(str(s) for s in self.domain) + ' -> ' + str(self.range)
