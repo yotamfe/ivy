@@ -26,6 +26,8 @@ import ivy_transrel
 import sys
 import logging
 import datetime
+import re
+from __builtin__ import True
 
 diagnose = iu.BooleanParameter("diagnose",False)
 coverage = iu.BooleanParameter("coverage",True)
@@ -175,6 +177,14 @@ class ProcedureSummary(object):
                                 renamed_update_clauses_lst,
                                 renamed_updated_syms)
         
+    def update_vocab_renamed_by_second_order_application(self, applied_terms):
+        subst = dict(zip(self._summary_vocab, applied_terms)) # TODO: two vocab!
+        return ivy_logic_utils.rename_clauses(self.get_update_clauses(), subst)
+    
+    def update_vars_renamed_by_second_order_application(self, applied_terms):
+        subst = dict(zip(self._summary_vocab, applied_terms)) # TODO: two vocab!
+        return [apply_dict_if_in_domain(s, subst) for s in self.get_updated_vars()]
+        
     def add_to_reachable_cache(self, transition_clauses, cex_info):
         self._reachable_states.add((transition_clauses, cex_info))
         
@@ -193,6 +203,9 @@ class ProcedureSummary(object):
             
         return (False, None)
 
+def get_action_name_from_second_order_predicate_name(pred_name):
+    # TODO: couple with the creation of the predicate
+    return re.match('sop_(.+)', pred_name).group(1)
 
 class SummarizedAction(ivy_actions.Action):
     def __init__(self, name, original_action, procedure_summary,
@@ -592,37 +605,54 @@ def get_action_two_vocabulary_clauses(ivy_action, axioms):
     logger.debug("two vocab for procedure: %s", res)
     return updated, res
 
-def apply_summaries_to_formula(formula, procedure_summaries):
+
+def summary_by_second_order_pred(formula, proceudre_summaries):
+    action_name = get_action_name_from_second_order_predicate_name(formula.func.name)
+    return proceudre_summaries[action_name]
+
+def replace_predicate_by_summary(formula, proceudre_summaries):
+    summary = summary_by_second_order_pred(formula, proceudre_summaries)
+    
+    renamed_update_clauses = summary.update_vocab_renamed_by_second_order_application(formula.terms)
+    return ivy_logic_utils.clauses_to_formula(renamed_update_clauses)
+
+def is_second_order_pred_application(formula):
     if isinstance(formula, logic.Apply):
-        logger.debug("hi3")
         applied_sorts = [t.sort for t in formula.terms]
         if any(not ivy_logic.is_first_order_sort(s) for s in applied_sorts):
             logger.debug("Found second order predicate, %s", formula)
-            assert False
+            return True
+        
+    return False
+
+def apply_summaries_to_formula(formula, procedure_summaries):
+    if is_second_order_pred_application(formula):
+        return replace_predicate_by_summary(formula, procedure_summaries)
         
     # based on ivy_logic_utils.rename_ast
     args = [apply_summaries_to_formula(arg, procedure_summaries)
                 for arg in formula.args]
     return formula.clone(args)
 
-    # based on ivy_logic_utils.rename_ast
-    if isinstance(formula, logic.Apply):
-        if not formula.args:
-            logger.debug("hi")
-            return formula
-        logger.debug("hi2, %s", type(formula))
-        return type(formula)(*[apply_summaries_to_formula(arg, procedure_summaries)
-                                for arg in formula.args])
-    return formula
+def updated_vars_predicate_summary(formula, procedure_summaries):
+    summary = summary_by_second_order_pred(formula, procedure_summaries)
+    return summary.update_vars_renamed_by_second_order_application(formula.terms)
+
+def get_updated_vars_of_summaries(formula, procedure_summaries):
+    if is_second_order_pred_application(formula):
+        return updated_vars_predicate_summary(formula, procedure_summaries) 
+    
+    res = set()
+    for arg in formula.args:
+        res |= get_updated_vars_of_summaries(arg, procedure_summaries)
+    return res
     
 def apply_procedure_summaries_to_second_order_summaries(procedure_summaries, 
                                                         base_updated_syms, clauses):
-    #updated_syms_from_summaries, res_clauses = clauses.apply(apply_summaries_to_formula, procedure_summaries)
     res_clauses = clauses.apply(apply_summaries_to_formula, procedure_summaries)
     
-    #updated_syms_from_summaries = clauses.apply(get_updated_syms_of_summaries, procedure_summaries)
-    updated_syms_from_summaries = set()
-    
+    updated_syms_from_summaries = set().union(*clauses.gen(get_updated_vars_of_summaries, 
+                                                           procedure_summaries))
     all_updated_syms = set(base_updated_syms) | updated_syms_from_summaries
     
     return list(all_updated_syms), res_clauses
