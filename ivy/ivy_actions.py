@@ -316,20 +316,20 @@ class AssignAction(Action):
             return res
 
         # If the lhs application is partial, make it total by adding parameters
-        xtra = len(lhs.rep.sort.dom) - len(lhs.args)
-        if xtra < 0:
-            raise IvyError(self,"too many parameters in assignment to " + lhs.rep)
-        if xtra > 0:
-            extend = sym_placeholders(lhs.rep)[-xtra:]
-            extend = variables_distinct_list_ast(extend,self)  # get unused variables
-            lhs = add_parameters_ast(lhs,extend)
-            # Assignment of individual to a boolean is a special case
-            if is_individual_ast(rhs) and not is_individual_ast(lhs):
-                rhs = eq_atom(extend[-1],add_parameters_ast(rhs,extend[0:-1]))
-            else:
-                rhs = add_parameters_ast(rhs,extend)
-
-        type_check(domain,rhs)
+#         xtra = len(lhs.rep.sort.dom) - len(lhs.args)
+#         if xtra < 0:
+#             raise IvyError(self,"too many parameters in assignment to " + lhs.rep)
+#         if xtra > 0:
+#             extend = sym_placeholders(lhs.rep)[-xtra:]
+#             extend = variables_distinct_list_ast(extend,self)  # get unused variables
+#             lhs = add_parameters_ast(lhs,extend)
+#             # Assignment of individual to a boolean is a special case
+#             if is_individual_ast(rhs) and not is_individual_ast(lhs):
+#                 rhs = eq_atom(extend[-1],add_parameters_ast(rhs,extend[0:-1]))
+#             else:
+#                 rhs = add_parameters_ast(rhs,extend)
+# 
+#         type_check(domain,rhs)
         if is_individual_ast(lhs) != is_individual_ast(rhs):
 #            print type(lhs.rep)
 #            print str(lhs.rep)
