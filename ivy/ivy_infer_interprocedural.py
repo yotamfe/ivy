@@ -529,6 +529,24 @@ def rename_map_not_to_mention_but_maintain_time(all_symbols, syms_to_avoid):
         
     return rename_map
 
+def rename_callee_vocab_back_clauses(clauses, orig_vocab):
+    clauses_lst = [clauses]
+    global calls_vars_renamer
+    invert_formals_map = calls_vars_renamer.formal_syms_inversion_map(call_action, formals)
+    
+    collision_avoidance_map = rename_map_not_to_mention_but_maintain_time(symbols_in_clauses_lst(clauses_lst), 
+                                                                          formals)
+    
+    # avoiding collisions on our renaming of the formals back to their original form
+    clauses_lst = [ivy_transrel.rename_clauses(two_vocab_clauses, collision_avoidance_map)
+                    for two_vocab_clauses in clauses_lst]
+    
+    clauses_lst = [ivy_transrel.rename_clauses(two_vocab_clauses, invert_formals_map)
+                    for two_vocab_clauses in clauses_lst]
+    
+    return clauses_lst[0]
+
+# TODO: remove
 def rename_callee_formals_back(clauses_lst, call_action):
     # TODO: use procedure_summary._summary_vocab
     callee_action = call_action.get_callee()
@@ -788,6 +806,25 @@ def is_call_to_summarized_action(action):
     callee = action.get_callee()
     return isinstance(callee, SummarizedAction)
 
+def restore_so_pred_vocab(two_vocab_clausees, so_pred, proc_summary):
+    clauses_lst = [two_vocab_clausees]
+    
+    orig_pred_vocab = proc_summary.so_pred_params()
+    
+    collision_avoidance_map = rename_map_not_to_mention_but_maintain_time(symbols_in_clauses_lst(clauses_lst), 
+                                                                          proc_summary.get_so_pre_formal_returns_as_action() + proc_summary.get_so_pred_formal_params_as_action())
+    
+    invert_formals_map = dict(zip(so_pred.terms, orig_pred_vocab))
+    
+    # avoiding collisions on our renaming of the formals back to their original form
+    clauses_lst = [ivy_transrel.rename_clauses(two_vocab_clauses, collision_avoidance_map)
+                    for two_vocab_clauses in clauses_lst]
+    
+    clauses_lst = [ivy_transrel.rename_clauses(two_vocab_clauses, invert_formals_map)
+                    for two_vocab_clauses in clauses_lst]
+    
+    return clauses_lst[0]
+
 def generate_summary_obligations_from_cex(proc_name, cex, procedure_summaries,
                                           update_clauses_mod_subcalls, updated_syms_mod_subcalls):
     summary_obligations = []
@@ -799,20 +836,23 @@ def generate_summary_obligations_from_cex(proc_name, cex, procedure_summaries,
         
         called_proc_name = get_action_name_from_so_application(so_pred)
         logger.debug("Called proc: %s", called_proc_name)
+        proc_summary = procedure_summaries[called_proc_name]
         
-    assert False
-    
-    for call_action, before_state, after_state in subprocedures_transitions:
-        transition_summary = None # TODO
+        symbols_updated_in_the_transition = proc_summary.get_updated_vars()
+
+        transition_summary = cex
+        
+        transition_summary_restored_vocab = restore_so_pred_vocab(transition_summary, 
+                                                                 so_pred,
+                                                                 procedure_summaries[called_proc_name])
                 
-        assert ivy_solver.clauses_sat(transition_summary)
+        assert ivy_solver.clauses_sat(transition_summary_restored_vocab)
         
         logger.debug("Transition summary: %s", transition_summary)
         
-        symbols_updated_in_the_transition = procedure_summaries[call_action.callee_name()].get_updated_vars()
-        summary_in_vocab = transform_to_callee_summary_vocabulary(transition_summary, 
-                                                                  call_action,
-                                                                  symbols_updated_in_the_transition)
+        clauses_in_vocab = hide_symbol_if(transition_summary_restored_vocab, 
+                                          lambda s: s not in proc_summary.so_pred_params())
+        summary_in_vocab = clauses_respecting_updated_syms(symbols_updated_in_the_transition, clauses_in_vocab)
         
         concrete_summary = concretize(summary_in_vocab, symbols_updated_in_the_transition,
                                       get_signature_symbols()) # TODO: also concretize the formals
@@ -822,7 +862,7 @@ def generate_summary_obligations_from_cex(proc_name, cex, procedure_summaries,
                                                                                                         model=None))
         res = UnivProofObligation(concrete_summary, universal_transition_summary)
         
-        summary_obligations.append((call_action.callee_name(), res))
+        summary_obligations.append((called_proc_name, res))
         
     return summary_obligations
     
