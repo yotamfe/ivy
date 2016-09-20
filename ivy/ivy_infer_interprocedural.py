@@ -720,9 +720,16 @@ def apply_procedure_summaries_to_second_order_summaries(procedure_summaries,
     
     return list(all_updated_syms), res_clauses
 
-def get_two_vocab_transition_clauses_wrt_summary(ivy_action, procedure_summaries, axioms):
+def get_two_vocab_mod_subcalls(ivy_action, procedure_summaries, axioms):
+    # TODO: should not need to pass procedure summaries
     with SummarizedActionsContext(procedure_summaries, lazy_summary_application=True):
         base_updated_syms, clauses = get_action_two_vocabulary_clauses(ivy_action, axioms)
+    
+    logger.debug("Two vocab mod subcalls for %s: %s", ivy_action.name, clauses)
+    return base_updated_syms, clauses
+
+def get_two_vocab_transition_clauses_wrt_summary(ivy_action, procedure_summaries, axioms):
+    base_updated_syms, clauses = get_two_vocab_mod_subcalls(ivy_action, procedure_summaries, axioms)
         
     return apply_procedure_summaries_to_second_order_summaries(procedure_summaries, 
                                                                base_updated_syms, clauses)
@@ -780,6 +787,44 @@ def is_call_to_summarized_action(action):
         return False
     callee = action.get_callee()
     return isinstance(callee, SummarizedAction)
+
+def generate_summary_obligations_from_cex(proc_name, cex, procedure_summaries,
+                                          update_clauses_mod_subcalls, updated_syms_mod_subcalls):
+    summary_obligations = []
+    
+    subprocedures_transitions = []
+    
+    for so_pred in get_second_order_application_clauses(update_clauses_mod_subcalls):
+        logger.debug("applied so pred: %s", so_pred)
+        
+        called_proc_name = get_action_name_from_so_application(so_pred)
+        logger.debug("Called proc: %s", called_proc_name)
+        
+    assert False
+    
+    for call_action, before_state, after_state in subprocedures_transitions:
+        transition_summary = None # TODO
+                
+        assert ivy_solver.clauses_sat(transition_summary)
+        
+        logger.debug("Transition summary: %s", transition_summary)
+        
+        symbols_updated_in_the_transition = procedure_summaries[call_action.callee_name()].get_updated_vars()
+        summary_in_vocab = transform_to_callee_summary_vocabulary(transition_summary, 
+                                                                  call_action,
+                                                                  symbols_updated_in_the_transition)
+        
+        concrete_summary = concretize(summary_in_vocab, symbols_updated_in_the_transition,
+                                      get_signature_symbols()) # TODO: also concretize the formals
+        
+        # TODO: use utils from ivy_infer_universal
+        universal_transition_summary = ivy_logic_utils.dual_clauses(ivy_solver.clauses_model_to_diagram(concrete_summary, 
+                                                                                                        model=None))
+        res = UnivProofObligation(concrete_summary, universal_transition_summary)
+        
+        summary_obligations.append((call_action.callee_name(), res))
+        
+    return summary_obligations
     
 def generate_summary_obligations_if_exists_cex(procedure_summaries, ag):
     # TODO: this actually assumes that the action consists of at least something more than the
@@ -877,15 +922,19 @@ def check_transitions_without_generating_goals(ivy_action, proc_name,
             res.append(not ivy_solver.clauses_sat(two_vocab_transition_to_violation))
         
     return res
-    
+
 def check_procedure_transition(ivy_action, proc_name,
                                procedure_summaries, two_vocab_obligation):
     with SummarizedActionsContext(procedure_summaries):
         axioms = im.module.background_theory()
-        # TODO: should not need to pass the axioms here, we conjoin with them later
-        updated_syms, two_vocab_update = get_two_vocab_transition_clauses_wrt_summary(ivy_action, 
-                                                                                      procedure_summaries, 
-                                                                                      axioms)
+        
+        updated_syms_mod_subcalls, update_clauses_mod_subcalls = get_two_vocab_mod_subcalls(ivy_action, 
+                                                                                            procedure_summaries, 
+                                                                                            axioms)
+        updated_syms, two_vocab_update = apply_procedure_summaries_to_second_order_summaries(procedure_summaries, 
+                                                                                             updated_syms_mod_subcalls, 
+                                                                                             update_clauses_mod_subcalls)
+        
         logger.debug("syms updated by the procedure: %s", updated_syms)
         
         update_with_axioms, obligation_wrt_sym_update = prepare_update_with_axioms_and_obligation(updated_syms, two_vocab_update, 
@@ -893,6 +942,13 @@ def check_procedure_transition(ivy_action, proc_name,
         
         two_vocab_transition_to_violation = ivy_transrel.conjoin(update_with_axioms,
                                                                  ivy_logic_utils.dual_clauses(obligation_wrt_sym_update))
+        
+        cex = ivy_solver.clauses_model_to_clauses(two_vocab_transition_to_violation)
+        if cex is None:
+            return None
+        
+        return generate_summary_obligations_from_cex(proc_name, cex, procedure_summaries,
+                                                     update_clauses_mod_subcalls, updated_syms_mod_subcalls)
     
         ag = ag_from_two_vocab_clauses(proc_name, updated_syms, two_vocab_transition_to_violation)
         summary_obligations = generate_summary_obligations_if_exists_cex(procedure_summaries, ag)
