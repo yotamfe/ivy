@@ -64,6 +64,10 @@ class ActionContext(object):
         return True
     def generate_unique_formals_renaming(self, call_action, formals, vocab):
         return distinct_obj_renaming(formals, vocab)
+    def actual_params(self, callee_name, actual_params):
+        return actual_params
+    def actual_returns(self, callee_name, actual_returns):
+        return actual_returns
 
 context = ActionContext()
 
@@ -363,7 +367,11 @@ def mk_assign_clauses(lhs,rhs):
     n = lhs.rep
     new_n = new(n)
     args = lhs.args
-    dlhs = new_n(*sym_placeholders(n))
+    placeholders = sym_placeholders(n)
+    dlhs = new_n(*placeholders)
+    if len(args) == 0 and len(rhs.args) == 0:
+        # hack for assigment of a predicate to a predicate
+        rhs = rhs(*placeholders)
     vs = dlhs.args
     eqs = [eq_atom(v,a) for (v,a) in zip(vs,args) if not isinstance(a,Variable)]
     rn = dict((a.rep,v) for v,a in zip(vs,args) if isinstance(a,Variable))
@@ -737,10 +745,16 @@ class CallAction(Action):
     def generate_unique_formals_renaming(self, formals, vocab):
         global context
         return context.generate_unique_formals_renaming(self, formals, vocab)
+    def actual_params_for_call(self):
+        global context
+        return context.actual_params(self.callee_name(), self.args[0].args)
+    def actual_returns_of_call(self):
+        global context
+        return context.actual_returns(self.callee_name(), self.args[1:])
     def apply_actuals(self,domain,pvars,v):
         assert hasattr(v,'formal_params'), v
-        actual_params = self.args[0].args
-        actual_returns = self.args[1:]
+        actual_params = self.actual_params_for_call()
+        actual_returns = self.actual_returns_of_call()
 #        formal_params = [s.prefix('_') for s in v.formal_params] # rename to prevent capture
 #        formal_returns = [s.prefix('_') for s in v.formal_returns] # rename to prevent capture
 #        subst = dict(zip(v.formal_params+v.formal_returns, formal_params+formal_returns))

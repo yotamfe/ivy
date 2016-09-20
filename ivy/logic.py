@@ -183,8 +183,8 @@ class Eq(recstruct('Eq', [], ['t1', 't2'])):
             pass
         elif t1.sort != t2.sort:
             raise SortError("Cannot compare different sorts: {}:{} == {}:{}".format(t1,t1.sort,t2,t2.sort))
-        elif not first_order_sort(t1.sort):
-            raise SortError("Cannot compare high order sorts: {} == {}".format(t1, t2))
+#         elif not first_order_sort(t1.sort):
+#             raise SortError("Cannot compare high order sorts: {} == {}".format(t1, t2))
         return t1, t2
     def __str__(self):
         return '({} == {})'.format(self.t1, self.t2)

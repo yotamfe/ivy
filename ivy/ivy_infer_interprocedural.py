@@ -56,18 +56,21 @@ def symbols_in_clauses_lst(clauses_lst):
     return set().union(*[clauses.symbols() for clauses in clauses_lst])
 
 class ProcedureSummary(object):
-    def __init__(self, formal_params, update_clauses_lst=None, updated_syms=None, 
+    def __init__(self, formal_vars,
+                 update_clauses_lst=None, updated_syms=None, 
                  resolve_formal_names_conflicts_lose_tracking=False):
         super(ProcedureSummary, self).__init__()
         
-        self._formal_params = formal_params
+        self._formal_params, self._formal_returns = formal_vars
+        self._formal_vars = self._formal_params + self._formal_returns
         
         if update_clauses_lst is None:
             update_clauses_lst = [ivy_logic_utils.true_clauses()]
         self._update_clauses = ivy_infer.ClausesClauses(update_clauses_lst)
         
         # TODO: document meaning
-        self._summary_vocab = formal_params + get_signature_symbols()
+        self._summary_vocab_without_formals = get_signature_symbols()
+        self._summary_vocab = self._formal_vars + self._summary_vocab_without_formals
         
         if updated_syms is None:
             updated_syms = self._summary_vocab
@@ -148,8 +151,8 @@ class ProcedureSummary(object):
     def _symbols_appearing_in_summary(self):
         return set(self._updated_syms) | symbols_in_clauses_lst(self._update_clauses.get_conjuncts_clauses_list())
         
-    def substitute_formals(self, subst):
-        assert set(subst.keys()) == set(self._formal_params)
+    def substitute(self, subst):
+        assert all(is_pre_vocabulary_sym(s) for s in subst.keys() + subst.values())
         if not self._resolve_formal_names_conflicts_lose_tracking:
             assert set(subst.values()) & set(self._symbols_appearing_in_summary()) == set()
         else:
@@ -161,7 +164,8 @@ class ProcedureSummary(object):
                 subst_sanitized[k] = ivy_transrel.rename(s, unique_renamer)
             subst = subst_sanitized
         
-        renamed_formals = [subst[s] for s in self._formal_params]
+        renamed_params = [subst[s] for s in self._formal_params]
+        renamed_returns = [subst[s] for s in self._formal_returns]
         
         two_vocab_subst = {}
         for s, t in subst.iteritems():
@@ -173,12 +177,31 @@ class ProcedureSummary(object):
                                       for clauses in self._update_clauses.get_conjuncts_clauses_list()]
         
         renamed_updated_syms = [apply_dict_if_in_domain(s, subst) for s in self._updated_syms]
-        return ProcedureSummary(renamed_formals,
+        return ProcedureSummary((renamed_params, renamed_returns),
                                 renamed_update_clauses_lst,
                                 renamed_updated_syms)
         
+    # TODO: these are the arguments for the second order predicate formula
+    # TODO: "as action" are used for renaming them in ivy_actions
+    # TODO: explain this difference, hack to make sure they are treated
+    # TODO: as modified by the two update generation code
     def so_pred_params(self):
-        return self._summary_vocab + [ivy_transrel.new(s) for s in self._summary_vocab]
+        in_param = self.get_so_pred_formal_params_as_action()
+        out_param = [ivy_transrel.new(s) 
+                        for s in self.get_so_pre_formal_returns_as_action()] 
+        return in_param + out_param
+    
+    def get_so_pred_formal_params_as_action(self):
+        return self._formal_params + self._summary_vocab_without_formals 
+    
+    def get_so_pre_formal_returns_as_action(self):
+        return self._formal_returns + self._summary_vocab_without_formals
+    
+    def imitate_so_params(self, actual_params):
+        return actual_params + self._summary_vocab_without_formals
+    
+    def imitate_so_returns(self, actual_returns):
+        return actual_returns + [ivy_transrel.new(s) for s in self._summary_vocab_without_formals]
         
     def update_vocab_renamed_by_second_order_application(self, applied_terms):
         subst = dict(zip(self.so_pred_params(), applied_terms)) # TODO: two vocab!
@@ -186,7 +209,7 @@ class ProcedureSummary(object):
     
     def update_vars_renamed_by_second_order_application(self, applied_terms):
         subst = dict(zip(self.so_pred_params(), applied_terms)) # TODO: two vocab!
-        return [apply_dict_if_in_domain(s, subst) for s in self.get_updated_vars()]
+        return [apply_dict_if_in_domain(s, subst) for s in self.get_updated_vars()]    
         
     def add_to_reachable_cache(self, transition_clauses, cex_info):
         self._reachable_states.add((transition_clauses, cex_info))
@@ -205,10 +228,7 @@ class ProcedureSummary(object):
                 return (True, cex_info)
             
         return (False, None)
-
-def get_action_name_from_second_order_predicate_name(pred_name):
-    # TODO: couple with the creation of the predicate
-    return re.match('sop_(.+)', pred_name).group(1)
+    
 
 class SummarizedAction(ivy_actions.Action):
     def __init__(self, name, original_action, procedure_summary,
@@ -221,13 +241,17 @@ class SummarizedAction(ivy_actions.Action):
         
         self._original_action = original_action
         
-        if hasattr(original_action,'formal_params'):
-            self.formal_params = original_action.formal_params
-        if hasattr(original_action,'formal_returns'):
-            self.formal_returns = original_action.formal_returns
-            
         # TODO: remove
         self._lazy_summary_application = lazy_summary_application
+        
+        if hasattr(original_action,'formal_params'):
+            self.formal_params = original_action.formal_params
+            if self._lazy_summary_application:
+                self.formal_params = self._procedure_summary.get_so_pred_formal_params_as_action()
+        if hasattr(original_action,'formal_returns'):
+            self.formal_returns = original_action.formal_returns
+            if self._lazy_summary_application:
+                self.formal_returns = self._procedure_summary.get_so_pre_formal_returns_as_action()
             
         summary_params = self._procedure_summary.so_pred_params()
         so_pred_sort = logic.FunctionSort(*([s.sort for s in summary_params] + [logic.Boolean]))
@@ -248,7 +272,7 @@ class SummarizedAction(ivy_actions.Action):
     def substitute(self, subst):
         return SummarizedAction(self._name, 
                                 self._original_action.substitute(subst),
-                                self._procedure_summary.substitute_formals(subst),
+                                self._procedure_summary.substitute(subst),
                                 lazy_summary_application=self._lazy_summary_application)
             
     # Override
@@ -353,6 +377,20 @@ class SummarizedActionsContext(ivy_actions.ActionContext):
         global calls_vars_renamer
         return calls_vars_renamer.unique_formals(call_action, formals)
     
+    # Override
+    def actual_params(self, callee_name, actual_params):
+        if not self._lazy_summary_application:
+            return actual_params
+        else:
+            return self._procedure_summaries[callee_name].imitate_so_params(actual_params)
+    
+    # Override
+    def actual_returns(self, callee_name, actual_returns):
+        if not self._lazy_summary_application:
+            return actual_returns
+        else:
+            return self._procedure_summaries[callee_name].imitate_so_returns(actual_returns)
+    
     def _should_inline_procedure(self, name):
         return name in ["add",
                         "add_container",
@@ -436,6 +474,15 @@ def clauses_to_new_vocabulary(clauses):
         assert not ivy_transrel.is_new(s), s
         renaming[s] = ivy_transrel.new(s)
     return ivy_logic_utils.rename_clauses(clauses, renaming)
+
+def is_pre_vocabulary_sym(s):
+    if s.is_numeral():
+        return True
+    if ivy_transrel.is_skolem(s):
+        return True
+    if ivy_transrel.is_new(s):
+        return False
+    return True
 
 def is_pre_vocabulary(clauses):
     for s in clauses.symbols():
@@ -609,8 +656,13 @@ def get_action_two_vocabulary_clauses(ivy_action, axioms):
     return updated, res
 
 
+def get_action_name_from_so_application(formula):
+    # TODO: couple with the creation of the predicate
+    action_name = re.match('sop_(.+)', formula.func.name).group(1)
+    return action_name
+
 def summary_by_second_order_pred(formula, proceudre_summaries):
-    action_name = get_action_name_from_second_order_predicate_name(formula.func.name)
+    action_name = get_action_name_from_so_application(formula)
     return proceudre_summaries[action_name]
 
 def replace_predicate_by_summary(formula, proceudre_summaries):
@@ -637,14 +689,17 @@ def apply_summaries_to_formula(formula, procedure_summaries):
                 for arg in formula.args]
     return formula.clone(args)
 
-def get_second_order_application(formula):
+def get_second_order_applications_formula(formula):
     if is_second_order_pred_application(formula):
         return [formula]
     
     res = []
     for arg in formula.args:
-        res += get_second_order_application(arg)
+        res += get_second_order_applications_formula(arg)
     return res
+
+def get_second_order_application_clauses(clauses):
+    return clauses.gen(get_second_order_applications_formula)
 
 def updated_vars_predicate_summary(formula, procedure_summaries):
     summary = summary_by_second_order_pred(formula, procedure_summaries)
@@ -652,7 +707,7 @@ def updated_vars_predicate_summary(formula, procedure_summaries):
 
 def get_updated_vars_of_summaries(formula, procedure_summaries):    
     res = set()
-    for so_app in get_second_order_application(formula):
+    for so_app in get_second_order_applications_formula(formula):
         res |= updated_vars_predicate_summary(so_app, procedure_summaries)
     return res
     
@@ -962,8 +1017,8 @@ def global_initial_state():
             logger.debug("initial state clauses: %s", initial_state_clauses)
             return initial_state_clauses
         
-def formal_params_of_action(ivy_action):
-    return ivy_action.formal_params + ivy_action.formal_returns
+def formal_vars_of_action(ivy_action):
+    return (ivy_action.formal_params, ivy_action.formal_returns)
         
 class GUPDRElements(ivy_infer_universal.UnivPdrElements):
     def __init__(self, actions_dict, exported_actions_names):
@@ -986,7 +1041,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         procedure_summaries = {}
     
         for name, ivy_action in self._actions_dict.iteritems():
-            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action),
+            procedure_summaries[name] = ProcedureSummary(formal_vars_of_action(ivy_action),
                                                          update_clauses_lst=[ivy_logic_utils.false_clauses()])
             # TODO: explain why this makes sense (calls are not allowed)
             
@@ -997,7 +1052,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
         procedure_summaries = {}
     
         for name, ivy_action in self._actions_dict.iteritems():
-            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action))
+            procedure_summaries[name] = ProcedureSummary(formal_vars_of_action(ivy_action))
             
         return procedure_summaries
     
@@ -1105,7 +1160,7 @@ class GUPDRElements(ivy_infer_universal.UnivPdrElements):
             else:
                 (update_clauses, updated_vars) = call_summary_by_name[name]
             
-            procedure_summaries[name] = ProcedureSummary(formal_params_of_action(ivy_action),
+            procedure_summaries[name] = ProcedureSummary(formal_vars_of_action(ivy_action),
                                                          [update_clauses],
                                                          updated_vars,
                                                          resolve_formal_names_conflicts_lose_tracking=True)
