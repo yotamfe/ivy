@@ -649,21 +649,41 @@ def clauses_imply(clauses1, clauses2):
 
 def clauses_imply_list(clauses1, clauses2_list):
     """True if clauses1 imply clauses2.
-    """
+    """     
+    use_bounded_horizon = True
+    
     s = z3.Solver()
+    
     z1 = clauses_to_z3(clauses1)
 #    print "z1 = {}".format(z1)
-    s.add(z1)
-
-    res = []
-    for clauses2 in clauses2_list:
-        z2 = not_clauses_to_z3(clauses2)
-#    print "z2 = {}".format(z2)
-        s.push()
-        s.add(z2)
-        res.append(s.check() == z3.unsat)
-        s.pop()
-    return res
+    
+    if not use_bounded_horizon:
+        s.add(z1)
+    
+        res = []
+        for clauses2 in clauses2_list:
+            z2 = not_clauses_to_z3(clauses2)
+    #    print "z2 = {}".format(z2)
+            s.push()
+            s.add(z2)
+            #print "Before check"
+            res.append(s.check() == z3.unsat)
+            #print "After check"
+            s.pop()
+        return res
+    else:
+        res = []
+        for clauses2 in clauses2_list:
+            z2 = not_clauses_to_z3(clauses2)
+            original_z3_formula_to_check = z3.And(z1, z2)
+            import z3_rewrite
+            #bounded_horizon_formula = z3_rewrite.bounded_horizon_instantiations(original_z3_formula_to_check)
+            bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
+            s.push()
+            s.add(bounded_horizon_formula)
+            res.append(s.check() == z3.unsat)
+            s.pop()
+        return res
 
 def clauses_list_imply_list(clauses1_list, clauses2_list):
     """True if clauses1 imply clauses2.
@@ -900,6 +920,34 @@ def get_small_model(clauses, sorts_to_minimize, relations_to_minimize, final_con
     h = HerbrandModel(s,m,used_symbols_clauses(clauses))
     return h
 
+def get_bounded_horizon_model(clauses, sorts_to_minimize, relations_to_minimize):
+    s = z3.Solver()
+    print "All your z3 clauses are mine!", clauses_to_z3(clauses)
+    print clauses
+    clauses_z3_formula = clauses_to_z3(clauses)
+    import z3_rewrite
+    bounded_horizon_formula = z3_rewrite.bounded_horizon_instantiations(clauses_z3_formula)
+    s.add(bounded_horizon_formula)
+    
+    res = decide(s)
+    if res == z3.unsat:
+        return None
+    
+    print "shrinking model {"
+    for x in chain(sorts_to_minimize, relations_to_minimize):
+        for n in itertools.count(1):
+            s.push()
+            sc = size_constraint(x, n)
+            s.add(formula_to_z3(sc))
+            res = decide(s)
+            if res == z3.sat:
+                break
+            else:
+                s.pop()
+    print "} shrinking model"
+    m = get_model(s)
+    h = HerbrandModel(s,m,used_symbols_clauses(clauses))
+    return h
 
 def model_universe_facts(h,sort,upclose):
     if ivy_logic.is_interpreted_sort(sort):
