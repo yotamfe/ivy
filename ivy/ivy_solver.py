@@ -650,14 +650,16 @@ def clauses_imply(clauses1, clauses2):
 def clauses_imply_list(clauses1, clauses2_list):
     """True if clauses1 imply clauses2.
     """     
+    use_original = False
     use_bounded_horizon = True
+    single_sat_query = True
     
     s = z3.Solver()
     
     z1 = clauses_to_z3(clauses1)
 #    print "z1 = {}".format(z1)
     
-    if not use_bounded_horizon:
+    if use_original:
         s.add(z1)
     
         res = []
@@ -674,37 +676,50 @@ def clauses_imply_list(clauses1, clauses2_list):
     else:
         res = []
                     
-        single_bounded_check = True
-        if not single_bounded_check:
+        if not single_sat_query:
             for clauses2 in clauses2_list:
                 z2 = not_clauses_to_z3(clauses2)
                 original_z3_formula_to_check = z3.And(z1, z2)
-                import z3_rewrite
                 #bounded_horizon_formula = z3_rewrite.bounded_horizon_instantiations(original_z3_formula_to_check)
-                bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
-                s.push()
-                s.add(bounded_horizon_formula)
-                res.append(s.check() == z3.unsat)
-                s.pop()
+                if use_bounded_horizon:
+		  import z3_rewrite
+		  bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
+		  s.push()
+		  s.add(bounded_horizon_formula)
+		  res.append(s.check() == z3.unsat)
+		  s.pop()
+		else:
+		  s.push()
+		  s.add(original_z3_formula_to_check)
+		  res.append(s.check() == z3.unsat)
+		  s.pop()
+		  
         else:
             original_z3_formula_to_check = z3.And(z1,
                                                   z3.Or(*(not_clauses_to_z3(clauses2) for clauses2 in clauses2_list)))
-            import z3_rewrite
             should_measure = True
             if should_measure:
                 import datetime
                 before = datetime.datetime.now()
-                
-            bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
-            s.push()
-            s.add(bounded_horizon_formula)
-            res.append(s.check() == z3.unsat)
-            s.pop()
+             
+            if use_bounded_horizon:
+	      import z3_rewrite
+	      bounded_horizon_formula = z3_rewrite.bounded_horizon_instantiations(original_z3_formula_to_check)
+	      #bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
+	      s.push()
+	      s.add(bounded_horizon_formula)
+	      res.append(s.check() == z3.unsat)
+	      s.pop()
+	    else:
+	      s.push()
+	      s.add(original_z3_formula_to_check)
+	      res.append(s.check() == z3.unsat)
+	      s.pop()
             
             if should_measure:
                 after = datetime.datetime.now()
                 elapsed = after - before
-                print "Elapsed time of bounded horizon: ", elapsed
+                print "Elapsed time of bounded horizon in ms: ", elapsed.total_seconds() * 1000
             
         return res
 
