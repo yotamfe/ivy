@@ -217,11 +217,18 @@ def bounded_horizon_closed_terms(func_symbols, const_symbols, bound):
                 yield func_symbol(*instantiation)
                 # TODO: has some repetitions, (c,c) and (c,c)
 
+def eliminate_dup_funcs_by_name(funcs_lst):
+    res = []
+    for func in funcs_lst:
+      if str(func) not in [str(f) for f in res]:
+	res.append(func)
+    return res
 
 def bounded_horizon_instantiations(s):
     skolemized_with_funcs = skolemize(s)
     print skolemized_with_funcs
     funcs = function_symbols(skolemized_with_funcs)
+    funcs = eliminate_dup_funcs_by_name(funcs)
     print funcs
 
     #terms_to_instantiate = list(bounded_horizon_closed_terms(funcs, constants(s), bound=1))
