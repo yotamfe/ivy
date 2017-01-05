@@ -690,11 +690,21 @@ def clauses_imply_list(clauses1, clauses2_list):
             original_z3_formula_to_check = z3.And(z1,
                                                   z3.Or(*(not_clauses_to_z3(clauses2) for clauses2 in clauses2_list)))
             import z3_rewrite
+            should_measure = True
+            if should_measure:
+                import datetime
+                before = datetime.datetime.now()
+                
             bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
             s.push()
             s.add(bounded_horizon_formula)
             res.append(s.check() == z3.unsat)
             s.pop()
+            
+            if should_measure:
+                after = datetime.datetime.now()
+                elapsed = after - before
+                print "Elapsed time of bounded horizon: ", elapsed
             
         return res
 
