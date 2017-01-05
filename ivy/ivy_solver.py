@@ -673,16 +673,29 @@ def clauses_imply_list(clauses1, clauses2_list):
         return res
     else:
         res = []
-        for clauses2 in clauses2_list:
-            z2 = not_clauses_to_z3(clauses2)
-            original_z3_formula_to_check = z3.And(z1, z2)
+                    
+        single_bounded_check = True
+        if not single_bounded_check:
+            for clauses2 in clauses2_list:
+                z2 = not_clauses_to_z3(clauses2)
+                original_z3_formula_to_check = z3.And(z1, z2)
+                import z3_rewrite
+                #bounded_horizon_formula = z3_rewrite.bounded_horizon_instantiations(original_z3_formula_to_check)
+                bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
+                s.push()
+                s.add(bounded_horizon_formula)
+                res.append(s.check() == z3.unsat)
+                s.pop()
+        else:
+            original_z3_formula_to_check = z3.And(z1,
+                                                  z3.Or(*(not_clauses_to_z3(clauses2) for clauses2 in clauses2_list)))
             import z3_rewrite
-            #bounded_horizon_formula = z3_rewrite.bounded_horizon_instantiations(original_z3_formula_to_check)
             bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
             s.push()
             s.add(bounded_horizon_formula)
             res.append(s.check() == z3.unsat)
             s.pop()
+            
         return res
 
 def clauses_list_imply_list(clauses1_list, clauses2_list):
