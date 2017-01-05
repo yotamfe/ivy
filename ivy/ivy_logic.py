@@ -408,6 +408,7 @@ def reason():
 def is_in_logic(term,logic,unstrat = False):
     global reason_text
     assert logic in logics
+    return True
     if logic == "epr":
         # ok = (is_prenex_universal(term)
         #       if lu.free_variables(term) else is_ea(term))
