@@ -271,11 +271,8 @@ def instantiate_foralls_with_terms_bounded_horizon(s, closed_terms):
     print "Number of clauses instantiated:", len(all_instantiated)
     return z3.And(all_instantiated)
 
-def restrict_var(s, var_idx, closed_terms):
-    for t in closed_terms:
-        if s.var_sort(var_idx) == t.sort():
-            print "Sort check:", s, var_idx, t, s.var_sort(var_idx), t.sort(), z3.Var(var_idx, s.var_sort(var_idx)), z3.Or(*[t == z3.Const(s.var_name(var_idx), s.var_sort(var_idx)) for t in closed_terms if s.var_sort(var_idx) == t.sort()])   
-    return z3.Or(*[t == z3.Const(s.var_name(var_idx), s.var_sort(var_idx)) for t in closed_terms if s.var_sort(var_idx) == t.sort()])
+def restrict_var(s, var, var_sort, closed_terms):   
+    return z3.Or(*[t == var for t in closed_terms if var_sort == t.sort()])
 
 def restrict_universal_quantifiers_to_terms(s, closed_terms):
     if z3.is_quantifier(s) and s.is_forall():
@@ -283,11 +280,21 @@ def restrict_universal_quantifiers_to_terms(s, closed_terms):
             return s
             
         assert s.num_vars() > 0
-        restriction_guard = z3.And(*[restrict_var(s, var, closed_terms) for var in xrange(0, s.num_vars())])
         
-        s = z3.ForAll([z3.Const(s.var_name(idx), s.var_sort(idx)) for idx in xrange(0, s.num_vars())],
+        # We replae the internal representation, that uses z3.Var, by z3.Const, to be able to refer to the quantified
+        # variables in the bound guard
+        consts_quantify_over = [z3.Const(s.var_name(idx), s.var_sort(idx)) for idx in xrange(0, s.num_vars())]
+        
+        restriction_guard = z3.And(*[restrict_var(s, consts_quantify_over[var_idx], s.var_sort(var_idx), 
+                                                  closed_terms) 
+                                        for var_idx in xrange(0, s.num_vars())])
+        
+        # see https://github.com/Z3Prover/z3/issues/402
+        body_with_consts = z3.substitute_vars(s.body(), *reversed(consts_quantify_over))
+        
+        s = z3.ForAll(consts_quantify_over,
                      z3.Implies(restriction_guard,
-                                      s.body()))
+                                      body_with_consts))
         
     return update_term(s, [restrict_universal_quantifiers_to_terms(child, closed_terms) for child in s.children()])
 
