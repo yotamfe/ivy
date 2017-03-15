@@ -271,8 +271,11 @@ def instantiate_foralls_with_terms_bounded_horizon(s, closed_terms):
     print "Number of clauses instantiated:", len(all_instantiated)
     return z3.And(all_instantiated)
 
-def restrict_var(s, var, closed_terms):
-    return z3.Or(*[t == z3.Var(var, s.var_sort(var)) for t in closed_terms if s.var_sort(var) == t.sort()])
+def restrict_var(s, var_idx, closed_terms):
+    for t in closed_terms:
+        if s.var_sort(var_idx) == t.sort():
+            print "Sort check:", s, var_idx, t, s.var_sort(var_idx), t.sort(), z3.Var(var_idx, s.var_sort(var_idx)), z3.Or(*[t == z3.Const(s.var_name(var_idx), s.var_sort(var_idx)) for t in closed_terms if s.var_sort(var_idx) == t.sort()])   
+    return z3.Or(*[t == z3.Const(s.var_name(var_idx), s.var_sort(var_idx)) for t in closed_terms if s.var_sort(var_idx) == t.sort()])
 
 def restrict_universal_quantifiers_to_terms(s, closed_terms):
     if z3.is_quantifier(s) and s.is_forall():
@@ -282,8 +285,9 @@ def restrict_universal_quantifiers_to_terms(s, closed_terms):
         assert s.num_vars() > 0
         restriction_guard = z3.And(*[restrict_var(s, var, closed_terms) for var in xrange(0, s.num_vars())])
         
-        s = update_term(s, [z3.Implies(restriction_guard,
-                                      s.body())])
+        s = z3.ForAll([z3.Const(s.var_name(idx), s.var_sort(idx)) for idx in xrange(0, s.num_vars())],
+                     z3.Implies(restriction_guard,
+                                      s.body()))
         
     return update_term(s, [restrict_universal_quantifiers_to_terms(child, closed_terms) for child in s.children()])
 
