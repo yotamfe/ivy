@@ -652,7 +652,7 @@ def clauses_imply_list(clauses1, clauses2_list):
     """     
     use_original = False
     use_bounded_horizon = True
-    single_sat_query = True
+    single_sat_query = False
     
     s = z3.Solver()
     
@@ -682,18 +682,18 @@ def clauses_imply_list(clauses1, clauses2_list):
                 original_z3_formula_to_check = z3.And(z1, z2)
                 #bounded_horizon_formula = z3_rewrite.bounded_horizon_instantiations(original_z3_formula_to_check)
                 if use_bounded_horizon:
-		  import z3_rewrite
-		  bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
-		  s.push()
-		  s.add(bounded_horizon_formula)
-		  res.append(s.check() == z3.unsat)
-		  s.pop()
-		else:
-		  s.push()
-		  s.add(original_z3_formula_to_check)
-		  res.append(s.check() == z3.unsat)
-		  s.pop()
-		  
+                    import z3_rewrite
+                    bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
+                    s.push()
+                    s.add(bounded_horizon_formula)
+                    res.append(s.check() == z3.unsat)
+                    s.pop()
+                else:
+                    s.push()
+                    s.add(original_z3_formula_to_check)
+                    res.append(s.check() == z3.unsat)
+                    s.pop()
+          
         else:
             original_z3_formula_to_check = z3.And(z1,
                                                   z3.Or(*(not_clauses_to_z3(clauses2) for clauses2 in clauses2_list)))
@@ -703,29 +703,30 @@ def clauses_imply_list(clauses1, clauses2_list):
             #    import datetime
             #    before = datetime.datetime.now()
                 
-	    formula_to_check = original_z3_formula_to_check
-             
+            formula_to_check = original_z3_formula_to_check
+                 
             if use_bounded_horizon:
-	      import z3_rewrite
-	      #bounded_horizon_formula = z3_rewrite.bounded_horizon_instantiations(original_z3_formula_to_check)
-	      bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
-	      formula_to_check = bounded_horizon_formula
-	     
-	    # to measure just the solving time: 
-	    if should_measure:
-                import datetime
-                before = datetime.datetime.now()
-	      
-	    s.push()
-	    s.add(formula_to_check)
-	    res.append(s.check() == z3.unsat)
-	    s.pop()
-            
+                import z3_rewrite
+                #bounded_horizon_formula = z3_rewrite.bounded_horizon_instantiations(original_z3_formula_to_check)
+                bounded_horizon_formula = z3_rewrite.bounded_horizon_restrict_universals(original_z3_formula_to_check)
+                formula_to_check = bounded_horizon_formula
+                
+            # to measure just the solving time: 
+            if should_measure:
+                    import datetime
+                    before = datetime.datetime.now()
+              
+            s.push()
+            print "Formula to send to z3:", formula_to_check
+            s.add(formula_to_check)
+            res.append(s.check() == z3.unsat)
+            s.pop()
+                
             if should_measure:
                 after = datetime.datetime.now()
                 elapsed = after - before
                 print "Elapsed time of bounded horizon in ms: ", elapsed.total_seconds() * 1000
-            
+        
         return res
 
 def clauses_list_imply_list(clauses1_list, clauses2_list):
@@ -897,16 +898,16 @@ def model_if_none(clauses1,implied,model):
             if s.check() != z3.unsat:
                 z3_counter += 1
                 
-		m = get_model(s)
-                print "model = {}, size = {}".format(m,sort_size)
+            m = get_model(s)
+            print "model = {}, size = {}".format(m,sort_size)
 ##        print "clauses1 = {}".format(clauses1)
 ##        print "z3c = {}".format(str(z3c))
-                syms = used_symbols_clauses(clauses1)
-                if implied != None:
-                    syms.update(used_symbols_clauses(implied))
-                h = HerbrandModel(s,m,syms)
-                s.pop()
-                return h
+            syms = used_symbols_clauses(clauses1)
+            if implied != None:
+                syms.update(used_symbols_clauses(implied))
+            h = HerbrandModel(s,m,syms)
+            s.pop()
+            return h
             sort_size += 1
             s.pop()
     return h
