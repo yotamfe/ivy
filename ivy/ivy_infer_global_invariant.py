@@ -81,8 +81,8 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
     from ivy_interp import State
    
     if True:
-        ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
-       
+        #ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
+        # relying on isolate context created earlier
         ag = ivy_art.AnalysisGraph()
 
         pre = State()
@@ -92,9 +92,11 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
         action = im.module.actions['ext']
         with EvalContext(check=False): # don't check safety
             post = ag.execute(action, pre, None, 'ext')
+
         post.clauses = ilu.true_clauses()
 
-        to_test =  poststate_obligation.get_conjuncts_clauses_list()
+        to_test = poststate_obligation.get_conjuncts_clauses_list()
+
 
         while len(to_test) > 0:           
             conj = to_test.pop(0)
@@ -198,8 +200,9 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         assert predicate == "inv"
        
         prestate_clauses = prestate_summaries["inv"].get_summary()
-     
-        ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
+
+        # relying on isolate context created earlier TODO: relies on ext there
+        #ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
             
         ag = ivy_art.AnalysisGraph()
      
@@ -254,7 +257,7 @@ def main():
             assert len(isolates) == 1
             isolate = isolates[0]
             with im.module.copy():
-                ivy_isolate.create_isolate(isolate)  # ,ext='ext'
+                ivy_isolate.create_isolate(isolate ,ext='ext')
                 infer_safe_summaries()
 
     print "OK"
