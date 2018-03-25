@@ -123,7 +123,20 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         return {"inv": ivy_infer.PredicateSummary("inv", ivy_logic_utils.true_clauses())}
     
     def push_forward(self, prev_summaries, current_summaries):
-        # simplest implementation, not pushing anything forward
+        prev_clauses_lst = prev_summaries["inv"].get_summary().get_conjuncts_clauses_list()
+        current_clauses_lst = current_summaries["inv"].get_summary().get_conjuncts_clauses_list()
+
+        for clauses in prev_clauses_lst:
+            if clauses in current_clauses_lst:
+                continue
+
+            transformability_cex = self.check_transformability_to_violation("inv", prev_summaries, clauses)
+            if transformability_cex is not None:
+                continue
+
+            logging.debug("Pushing to next frame: %s", clauses)
+            current_summaries["inv"].strengthen(clauses)
+
         return current_summaries
     
     def check_summary_safety(self, summaries):
