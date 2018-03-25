@@ -60,37 +60,25 @@ def global_initial_state():
             return initial_state_clauses
 
 def check_any_exported_action_transition(prestate_clauses, poststate_obligation):
-    import ivy_ui
     import ivy_logic as il
     import logic as lg
-    from ivy_interp import State,EvalContext,reverse,decompose_action_app
+    from ivy_interp import EvalContext
     import ivy_module as im
     import ivy_logic_utils as ilu
-    import logic_util as lu
-    import ivy_utils as iu
-    import ivy_graph_ui
-    import ivy_actions as ia
-
-   
-    import ivy_transrel
     from ivy_solver import get_small_model
-    from proof import ProofGoal
-    from ivy_logic_utils import Clauses, and_clauses, dual_clauses
-    from random import randrange
-    from ivy_art import AnalysisGraph
+    from ivy_logic_utils import and_clauses, dual_clauses
     from ivy_interp import State
-   
+
     if True:
-        #ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
         # relying on isolate context created earlier
         ag = ivy_art.AnalysisGraph()
 
         pre = State()
         pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
 
-
+        # relies on the isolate being created with 'ext' action
         action = im.module.actions['ext']
-        with EvalContext(check=False): # don't check safety
+        with EvalContext(check=False):
             post = ag.execute(action, pre, None, 'ext')
 
         post.clauses = ilu.true_clauses()
@@ -98,7 +86,7 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
         to_test = poststate_obligation.get_conjuncts_clauses_list()
 
 
-        while len(to_test) > 0:           
+        while len(to_test) > 0:
             conj = to_test.pop(0)
             assert conj.is_universal_first_order()
             used_names = frozenset(x.name for x in il.sig.symbols.values())
@@ -177,38 +165,22 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         return False, None
         
     def generalize_intransformability(self, predicate, prestate_summaries, poststate_clauses):
-        import ivy_ui
-        import ivy_logic as il
-        import logic as lg
-        from ivy_interp import State,EvalContext,reverse,decompose_action_app
         import ivy_module as im
-        import ivy_logic_utils as ilu
-        import logic_util as lu
-        import ivy_utils as iu
-        import ivy_graph_ui
-        import ivy_actions as ia
-     
-        
         import ivy_transrel
-        from ivy_solver import get_small_model
-        from proof import ProofGoal
-        from ivy_logic_utils import Clauses, and_clauses, dual_clauses
-        from random import randrange
-        from ivy_art import AnalysisGraph
+        from ivy_logic_utils import and_clauses
         from ivy_interp import State
         
         assert predicate == "inv"
        
         prestate_clauses = prestate_summaries["inv"].get_summary()
 
-        # relying on isolate context created earlier TODO: relies on ext there
-        #ivy_isolate.create_isolate(None, **{'ext':'ext'}) # construct the nondeterministic choice between actions action
-            
+        # relying on isolate context created earlier
         ag = ivy_art.AnalysisGraph()
      
         pre = State()
         pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
-        
+
+        # relying on the isolate being created with 'ext' action
         action = im.module.actions['ext']
         
         post = ivy_logic_utils.dual_clauses(poststate_clauses)
@@ -257,7 +229,7 @@ def main():
             assert len(isolates) == 1
             isolate = isolates[0]
             with im.module.copy():
-                ivy_isolate.create_isolate(isolate ,ext='ext')
+                ivy_isolate.create_isolate(isolate, ext='ext')
                 infer_safe_summaries()
 
     print "OK"
