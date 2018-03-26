@@ -88,7 +88,6 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
 
         while len(to_test) > 0:
             conj = to_test.pop(0)
-            assert conj.is_universal_first_order(), conj
             used_names = frozenset(x.name for x in il.sig.symbols.values())
             def witness(v):
                 c = lg.Const('@' + v.name, v.sort)
@@ -171,7 +170,6 @@ class PdrGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         conjectures_to_verify = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
 
         for conjecture in conjectures_to_verify:
-            assert conjecture.is_universal_first_order()
             bad_clauses = ivy_logic_utils.dual_clauses(conjecture)
             inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses])
             bad_inv_model = inv_but_bad_clauses.get_model()
