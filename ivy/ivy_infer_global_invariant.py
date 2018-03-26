@@ -88,7 +88,7 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
 
         while len(to_test) > 0:
             conj = to_test.pop(0)
-            assert conj.is_universal_first_order()
+            assert conj.is_universal_first_order(), conj
             used_names = frozenset(x.name for x in il.sig.symbols.values())
             def witness(v):
                 c = lg.Const('@' + v.name, v.sort)
@@ -141,8 +141,8 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
         #     return prestate_model_clauses
         #
         # return None
-   
-class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
+
+class PdrGlobalInvariant(ivy_infer_universal.UnivPdrElements):
     def initial_summary(self):
         return {"inv": ivy_infer.PredicateSummary("inv", global_initial_state())}
     
@@ -168,16 +168,20 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
     
     def check_summary_safety(self, summaries):
         inv_summary = summaries["inv"].get_summary()
-        bad_clauses = ivy_logic_utils.to_clauses('holds_lock(N)')
-       
-        inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses])
-        bad_inv_model = inv_but_bad_clauses.get_model()
-        if bad_inv_model is None:
-            return (None, None)
-       
-        # TODO: refactor...
-        return ("inv",
-                [("inv", self._bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model))])
+        conjectures_to_verify = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
+
+        for conjecture in conjectures_to_verify:
+            assert conjecture.is_universal_first_order()
+            bad_clauses = ivy_logic_utils.dual_clauses(conjecture)
+            inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses])
+            bad_inv_model = inv_but_bad_clauses.get_model()
+            if bad_inv_model is None:
+                continue
+
+            return ("inv",
+                    [("inv", self._bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model))])
+
+        return (None, None)
     
     def check_transformability_to_violation(self, predicate, summaries_by_symbol, proof_obligation):
         assert predicate == "inv"
@@ -233,7 +237,7 @@ class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
 
 
 def infer_safe_summaries():
-    is_safe, frame_or_cex = ivy_infer.pdr(PdrCmeGlobalInvariant())
+    is_safe, frame_or_cex = ivy_infer.pdr(PdrGlobalInvariant())
     if not is_safe:
         print "Not safe!"
     else:
