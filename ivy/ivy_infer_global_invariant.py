@@ -114,6 +114,33 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
                 return res.states               
             else:
                 return None
+
+        # TODO: attempt to mimic the new ivy_check (26/3/2018)
+        # while len(to_test) > 0:
+        #     conj = to_test.pop(0)
+        #     assert conj.is_universal_first_order(), conj
+        #     # used_names = frozenset(x.name for x in il.sig.symbols.values())
+        #     # def witness(v):
+        #     #     c = lg.Const('@' + v.name, v.sort)
+        #     #     assert c.name not in used_names
+        #     #     return c
+        #
+        #     # clauses_to_check = dual_clauses(conj, witness)
+        #     clauses_to_check = dual_clauses(conj)
+        #
+        #     # based on ivy_check.check_fcs_in_state()
+        #     history = ag.get_history(post)
+        #     clauses = history.post
+        #     clauses = ivy_logic_utils.and_clauses(clauses, im.module.background_theory())
+        #     model = ivy_transrel.small_model_clauses(clauses, final_cond=clauses_to_check, shrink=True)
+        #     if model is None:
+        #         continue
+        #
+        #     # based on ivy_check.MatchHandler.__init__
+        #     prestate_model_clauses = ivy_solver.clauses_model_to_clauses(clauses, model=model, numerals=True)
+        #     return prestate_model_clauses
+        #
+        # return None
    
 class PdrCmeGlobalInvariant(ivy_infer_universal.UnivPdrElements):
     def initial_summary(self):
