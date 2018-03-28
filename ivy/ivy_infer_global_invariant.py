@@ -59,6 +59,9 @@ def global_initial_state():
             logger.debug("initial state clauses: %s", initial_state_clauses)
             return initial_state_clauses
 
+def ivy_all_axioms():
+    return ivy_logic_utils.and_clauses(*(ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms))
+
 def check_any_exported_action_transition(prestate_clauses, poststate_obligation):
     import ivy_logic as il
     import logic as lg
@@ -75,6 +78,7 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
 
         pre = State()
         pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
+        pre.clauses = and_clauses(pre.clauses, ivy_all_axioms())
 
         # relies on the isolate being created with 'ext' action
         action = im.module.actions['ext']
@@ -227,7 +231,7 @@ class PdrGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         
         post = ivy_logic_utils.dual_clauses(poststate_clauses)
         
-        axioms = im.module.background_theory()
+        axioms = ivy_all_axioms()
         NO_INTERPRETED = None
         res = ivy_transrel.forward_interpolant(pre.clauses, action.update(ag.domain,pre.in_scope),post,axioms,NO_INTERPRETED)
         assert res != None
