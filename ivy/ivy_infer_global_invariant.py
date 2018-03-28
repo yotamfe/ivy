@@ -28,6 +28,7 @@ logger = logging.getLogger(__file__)
 import ivy_infer
 from ivy_infer import ClausesClauses
 import ivy_infer_universal
+import ivy_solver
 
 def display_cex(msg,ag):
     print msg
@@ -238,6 +239,36 @@ class PdrGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         return res[1]
 
 
+def minimize_invariant(invariant):
+    invariant_clauses_simplified = set(ivy_logic_utils.simplify_clauses(cls)
+                                       for cls in invariant.get_conjuncts_clauses_list())
+
+    while True:
+        clauses_to_check = set(invariant_clauses_simplified)
+        clauses_retained = set()
+        reduced_in_this_pass = False
+
+        while clauses_to_check:
+            current_clauses = clauses_to_check.pop()
+            redundant_check_res = ivy_solver.clauses_list_imply_list(list(clauses_retained | clauses_to_check),
+                                                              [current_clauses])
+            if redundant_check_res == [True]:
+                reduced_in_this_pass = True
+            else:
+                clauses_retained.add(current_clauses)
+
+        if not reduced_in_this_pass:
+            break
+
+        invariant_clauses_simplified = clauses_retained | clauses_to_check
+
+    assert ivy_solver.clauses_list_imply_list(invariant_clauses_simplified,
+                                              invariant.get_conjuncts_clauses_list())
+    assert ivy_solver.clauses_list_imply_list(invariant.get_conjuncts_clauses_list(),
+                                              invariant_clauses_simplified)
+    return invariant_clauses_simplified
+
+
 def infer_safe_summaries():
     is_safe, frame_or_cex = ivy_infer.pdr(PdrGlobalInvariant())
     if not is_safe:
@@ -248,7 +279,11 @@ def infer_safe_summaries():
         print "Invariant:", invariant
         print "Invariant as a single formula:", invariant.to_single_clauses()
         assert check_any_exported_action_transition(invariant, invariant) is None
-        
+
+        invariant_reduced = minimize_invariant(invariant)
+        print "Invariant reduced:", invariant_reduced
+
+
 def usage():
     print "usage: \n  {} file.ivy".format(sys.argv[0])
     sys.exit(1)
