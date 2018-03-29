@@ -121,7 +121,7 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
 
             # attempt to mimic generalize_intransformability: (29/3/2018)
             # gap is to take only the prestate of the cti and pass it forwards (to the diagram)
-            # 
+            #
             # ag = ivy_art.AnalysisGraph()
             #
             # pre = State()
@@ -298,7 +298,7 @@ def minimize_invariant(invariant):
 def infer_safe_summaries():
     is_safe, frame_or_cex = ivy_infer.pdr(PdrGlobalInvariant())
     if not is_safe:
-        print "Not safe!"
+        print "Possibly not safe! - bug or no universal invariant"
     else:
         safe_frame = frame_or_cex
         invariant = safe_frame["inv"].get_summary()
