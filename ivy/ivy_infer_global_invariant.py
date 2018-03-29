@@ -119,6 +119,32 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
             else:
                 return None
 
+            # attempt to mimic generalize_intransformability: (29/3/2018)
+            # gap is to take only the prestate of the cti and pass it forwards (to the diagram)
+            # 
+            # ag = ivy_art.AnalysisGraph()
+            #
+            # pre = State()
+            # pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
+            #
+            # # relying on the isolate being created with 'ext' action
+            # action = im.module.actions['ext']
+            #
+            # post = ivy_logic_utils.dual_clauses(conj)
+            #
+            # axioms = ivy_all_axioms()
+            # import ivy_transrel
+            # pre_and_tr = ivy_transrel.forward_image(pre.clauses, axioms,
+            #                                         action.update(ag.domain, pre.in_scope))
+            # vc = ClausesClauses([pre_and_tr, post])
+            # cti = vc.get_model()
+            # if cti is None:
+            #     continue
+            #
+            # return (vc, cti)
+
+            # return None
+
         # TODO: attempt to mimic the new ivy_check (26/3/2018)
         # while len(to_test) > 0:
         #     conj = to_test.pop(0)
