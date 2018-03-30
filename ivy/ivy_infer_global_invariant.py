@@ -264,10 +264,24 @@ class PdrGlobalInvariant(ivy_infer_universal.UnivPdrElements):
         assert res != None
         return res[1]
 
+    def check_inductive_invariant(self, candidate):
+        candidate_summary = ivy_infer.PredicateSummary("inv", candidate)
+        as_summaries_map = {"inv" : candidate_summary}
+        is_init_contained = check_logical_implication(self.initial_summary()["inv"].get_summary().get_conjuncts_clauses_list(),
+                                                      candidate)
+        is_inductive = check_any_exported_action_transition(candidate_summary.get_summary(),
+                                                            candidate_summary.get_summary())
+        is_safe = self.check_summary_safety(as_summaries_map)
+        return is_init_contained and is_inductive and is_safe
 
-def minimize_invariant(invariant):
+def check_logical_implication(clauses_lst1, clauses_lst2):
+    is_implied_per_clause = ivy_solver.clauses_list_imply_list(clauses_lst1,
+                                                               clauses_lst2)
+    return all(is_implied_per_clause)
+
+def minimize_invariant(invariant_clauses_iterable, redundancy_checker):
     invariant_clauses_simplified = set(ivy_logic_utils.simplify_clauses(cls)
-                                       for cls in invariant.get_conjuncts_clauses_list())
+                                       for cls in invariant_clauses_iterable)
 
     while True:
         clauses_to_check = set(invariant_clauses_simplified)
@@ -276,9 +290,10 @@ def minimize_invariant(invariant):
 
         while clauses_to_check:
             current_clauses = clauses_to_check.pop()
-            redundant_check_res = ivy_solver.clauses_list_imply_list(list(clauses_retained | clauses_to_check),
-                                                              [current_clauses])
-            if redundant_check_res == [True]:
+
+            is_redundant = redundancy_checker(list(clauses_retained | clauses_to_check),
+                                              current_clauses)
+            if is_redundant:
                 reduced_in_this_pass = True
             else:
                 clauses_retained.add(current_clauses)
@@ -288,26 +303,34 @@ def minimize_invariant(invariant):
 
         invariant_clauses_simplified = clauses_retained | clauses_to_check
 
-    assert ivy_solver.clauses_list_imply_list(invariant_clauses_simplified,
-                                              invariant.get_conjuncts_clauses_list())
-    assert ivy_solver.clauses_list_imply_list(invariant.get_conjuncts_clauses_list(),
-                                              invariant_clauses_simplified)
     return invariant_clauses_simplified
 
 
 def infer_safe_summaries():
-    is_safe, frame_or_cex = ivy_infer.pdr(PdrGlobalInvariant())
+    pdr_elements_global_invariant = PdrGlobalInvariant()
+    is_safe, frame_or_cex = ivy_infer.pdr(pdr_elements_global_invariant)
     if not is_safe:
         print "Possibly not safe! - bug or no universal invariant"
     else:
         safe_frame = frame_or_cex
         invariant = safe_frame["inv"].get_summary()
-        print "Invariant:", invariant
-        print "Invariant as a single formula:", invariant.to_single_clauses()
+        logger.info("Invariant: %s", invariant)
+        logger.info("Invariant as a single formula: %s", invariant.to_single_clauses())
         assert check_any_exported_action_transition(invariant, invariant) is None
 
-        invariant_reduced = minimize_invariant(invariant)
-        print "Invariant reduced:", invariant_reduced
+        invariant_reduced_equiv = minimize_invariant(invariant.get_conjuncts_clauses_list(),
+                                                     lambda candidate, omitted: check_logical_implication(candidate,
+                                                                                                          [omitted]))
+        assert ivy_solver.clauses_list_imply_list(invariant_reduced_equiv,
+                                                  invariant.get_conjuncts_clauses_list())
+        assert ivy_solver.clauses_list_imply_list(invariant.get_conjuncts_clauses_list(),
+                                                  invariant_reduced_equiv)
+        logger.info("Invariant reduced (logical equivalence): %s", invariant_reduced_equiv)
+
+        invariant_reduced = minimize_invariant(invariant_reduced_equiv,
+                                               lambda candidate, omitted:
+                                                    pdr_elements_global_invariant.check_inductive_invariant(candidate))
+        print "Invariant reduced:", invariant_reduced_equiv
 
 
 def usage():
