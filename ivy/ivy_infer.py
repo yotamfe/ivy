@@ -106,10 +106,14 @@ class PdrElements(object):
 
     
 class PredicateSummary(object):
-    def __init__(self, predicate_symbol, summary_single_clauses):
+    def __init__(self, predicate_symbol, summary_clauses):
         self._predicate_symbol = predicate_symbol
-       
-        self._summary = ClausesClauses([summary_single_clauses])
+
+        if type(summary_clauses) is list:
+            summary_clauses_list = summary_clauses
+        else:
+            summary_clauses_list = [summary_clauses]
+        self._summary = ClausesClauses(summary_clauses_list)
        
     def get_summary(self):
         return self._summary
