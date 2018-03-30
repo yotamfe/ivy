@@ -61,7 +61,11 @@ def global_initial_state():
             return initial_state_clauses
 
 def ivy_all_axioms():
-    return ivy_logic_utils.and_clauses(*(ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms))
+    axioms_lst = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms]
+    if axioms_lst:
+        return ivy_logic_utils.and_clauses(*axioms_lst)
+    # and_clauses on an empty list causes problems, later fails in clauses_using_symbols
+    return ivy_logic_utils.true_clauses()
 
 def check_any_exported_action_transition(prestate_clauses, poststate_obligation):
     import ivy_logic as il
