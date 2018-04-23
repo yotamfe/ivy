@@ -128,17 +128,20 @@ def is_skolem_relation(s):
 
     return s.func.is_skolem()
 
-def has_second_order_skolems(fmla):
-    return any(s.is_skolem() and isinstance(s.sort, FunctionSort)
-               for s in used_symbols_ast(fmla))
+def second_order_skolems(fmla):
+    return [s for s in used_symbols_ast(fmla)
+            if (s.is_skolem() and isinstance(s.sort, FunctionSort))]
 
 # TODO: perform substitution in the correct order
 def inline_relation_definitions(clauses):
     defs_to_inline = [df for df in clauses.defs if is_skolem_relation(df.lhs())]
-    print "Defs to inline:", defs_to_inline
     defs_to_retain = [df for df in clauses.defs if df not in defs_to_inline]
+
+    defs_to_inline_sorted = reversed(defs_to_inline)
+    print defs_to_inline
+
     current_fmlas = clauses.fmlas
-    for def_to_inline in defs_to_inline:
+    for def_to_inline in defs_to_inline_sorted:
         sub = {def_to_inline.lhs().func:
                 lambda *terms: substitute_ast(def_to_inline.rhs(),
                                              dict((v,t) for (v,t) in zip(terms, def_to_inline.lhs().terms)))}
@@ -148,7 +151,9 @@ def inline_relation_definitions(clauses):
             print "Result:", logic_util.substitute_apply(fm, sub)
         current_fmlas = [logic_util.substitute_apply(fm, sub) for fm in current_fmlas]
 
-    assert all(not has_second_order_skolems(fmla) for fmla in current_fmlas)
+    res = Clauses(fmlas=current_fmlas, defs=defs_to_retain)
+    print res
+    assert all(not second_order_skolems(fmla) for fmla in current_fmlas), res
     return Clauses(fmlas=current_fmlas, defs=defs_to_retain)
 
 def really_close_epr(fmla):
@@ -161,7 +166,6 @@ def really_close_epr(fmla):
 
     skolems_fo = [s for s in skolems if not isinstance(s.sort, FunctionSort)]
     skvars_fo = [Variable('V' + s.name, s.sort) for s in skolems_fo]
-    print "SO Skolems:", [s for s in skolems if isinstance(s.sort, FunctionSort)]
     universally_closed_skolem_renamed = rename_ast(universally_closed,dict(zip(skolems_fo,skvars_fo)))
     return Exists(skvars_fo, universally_closed_skolem_renamed) if skvars_fo else universally_closed_skolem_renamed
 
