@@ -281,7 +281,7 @@ def enumerated_to_numeral(term):
     raise iu.IvyError(None,'Cannot interpret enumerated type "{}" as a native sort (not yet supported)'.format(term.sort.name))
 
 def term_to_z3(term):
-    if ivy_logic.is_boolean(term):
+    if ivy_logic.is_boolean(term) and not isinstance(term, ivy_logic.Variable):
         return formula_to_z3_int(term)
     if not term.args:
         if isinstance(term,ivy_logic.Variable):
@@ -439,7 +439,10 @@ def formula_to_z3_int(fmla):
         return atom_to_z3(fmla)
     if isinstance(fmla,ivy_logic.Definition) and ivy_logic.is_enumerated(fmla.args[0]) and not use_z3_enums:
         return encode_equality(*fmla.args)
+
     args = [formula_to_z3_int(arg) for arg in fmla.args]
+    if isinstance(fmla,ivy_logic.Variable):
+        return term_to_z3(fmla)
     if isinstance(fmla,ivy_logic.And):
         return z3.And(args)
     if isinstance(fmla,ivy_logic.Or):
@@ -454,14 +457,14 @@ def formula_to_z3_int(fmla):
         return z3.Implies(args[0],args[1])
     if isinstance(fmla,ivy_logic.Ite):
         return z3.If(args[0],args[1],args[2])
+    if ivy_logic.is_individual(fmla):
+        return term_to_z3(fmla)
     if ivy_logic.is_quantifier(fmla):
         variables = ivy_logic.quantifier_vars(fmla)
         q = forall if ivy_logic.is_forall(fmla) else exists
-        res =  q(variables, [term_to_z3(v) for v in variables], args[0])
-#        print "res = {}".format(res)
+        res = q(variables, [term_to_z3(v) for v in variables], args[0])
+        #        print "res = {}".format(res)
         return res
-    if ivy_logic.is_individual(fmla):
-        return term_to_z3(fmla)
     print "bad fmla: {!r}".format(fmla)
     assert False
 
@@ -738,9 +741,12 @@ def clauses_imply(clauses1, clauses2):
     """
     s = z3.Solver()
     z1 = clauses_to_z3(clauses1)
+    print "Clauses1", z1
 #    print "z1 = {}".format(z1)
     s.add(z1)
+    print "Clauses2", clauses_to_z3(clauses2)
     z2 = not_clauses_to_z3(clauses2)
+    print "Not Clauses2", z2
 #    print "z2 = {}".format(z2)
     s.add(z2)
     return s.check() == z3.unsat

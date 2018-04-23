@@ -62,6 +62,9 @@ class Clauses(object):
         assert self.defs == []
         return [close_epr(c) for c in self.fmlas]
     # TODO: this should not be needed
+    def epr_closed(self):
+        assert self.defs == []
+        return Clauses(fmlas=[really_close_epr(c) for c in self.fmlas])
     def copy(self):
         return Clauses(list(self.fmlas),list(self.defs))
 #    def define(self,dfn):
@@ -116,6 +119,19 @@ def close_epr(fmla):
         return fmla
     else:
         return ForAll(variables,fmla)
+
+def really_close_epr(fmla):
+    """ Convert fmla to E X. A Y. fmla, where X are the skolems in fmla and Y are the variables. """
+    if isinstance(fmla, And):
+        return And(*[close_epr(f) for f in fmla.args])
+    skolems = [s for s in used_symbols_ast(fmla) if s.is_skolem()]
+    variables = list(used_variables_ast(fmla))
+    # TODO: avoid variable name clashes (shouldn't happen, but just to be safe)
+    universally_closed = ForAll(variables, fmla) if variables else fmla
+    skvars = [Variable('V' + s.name, s.sort) for s in skolems]
+    universally_closed = rename_ast(universally_closed,dict(zip(skolems,skvars)))
+    print "Closed EPR:", Exists(skvars, universally_closed) if skvars else universally_closed
+    return Exists(skvars, universally_closed) if skvars else universally_closed
 
 for op in lg_ops:
     op.clauses = property(lambda self: formula_to_clauses(self).clauses)
