@@ -207,7 +207,7 @@ def substitute_apply(t, subs, by_name=False):
         return result
 
     elif type(t) in (Apply, Eq, Ite, Not, And, Or, Implies, Iff):
-        return type(t)(*(_substitute_apply(x) for x in t))
+        return type(t)(*[_substitute_apply(x) for x in t])
 
     elif type(t) in (ForAll, Exists, Lambda, NamedBinder):
         return type(t)(t.variables, _substitute_apply(t.body, subs=dict(

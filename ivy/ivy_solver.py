@@ -299,6 +299,9 @@ def term_to_z3(term):
 #            print type(sksym)
 #            print sksym
 #            print sig
+#             if type(sig) == list:
+#                 res = z3.Function(sksym,sig)
+#             else:
             res = z3.Const(sksym,sig)
             z3_constants[sksym] = res
             return res

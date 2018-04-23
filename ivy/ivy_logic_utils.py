@@ -21,6 +21,8 @@ from ivy_lexer import *
 import ply.yacc as yacc
 from functools import partial
 import ivy_logic
+import logic
+import logic_util
 from itertools import chain
 from ivy_logic_parser_gen import formula_parser,term_parser
 from collections import defaultdict
@@ -62,7 +64,8 @@ class Clauses(object):
         assert self.defs == []
         return [close_epr(c) for c in self.fmlas]
     def epr_closed(self):
-        return Clauses(fmlas=[really_close_epr(self.to_open_formula())])
+        # return Clauses(fmlas=[really_close_epr(self.to_open_formula())])
+        return Clauses(fmlas=[really_close_epr(inline_relation_definitions(self).to_open_formula())])
     # TODO: this should not be needed
     def copy(self):
         return Clauses(list(self.fmlas),list(self.defs))
@@ -119,15 +122,48 @@ def close_epr(fmla):
     else:
         return ForAll(variables,fmla)
 
+def is_skolem_relation(s):
+    if not isinstance(s, logic.Apply):
+        return False
+
+    return s.func.is_skolem()
+
+def has_second_order_skolems(fmla):
+    return any(s.is_skolem() and isinstance(s.sort, FunctionSort)
+               for s in used_symbols_ast(fmla))
+
+# TODO: perform substitution in the correct order
+def inline_relation_definitions(clauses):
+    defs_to_inline = [df for df in clauses.defs if is_skolem_relation(df.lhs())]
+    print "Defs to inline:", defs_to_inline
+    defs_to_retain = [df for df in clauses.defs if df not in defs_to_inline]
+    current_fmlas = clauses.fmlas
+    for def_to_inline in defs_to_inline:
+        sub = {def_to_inline.lhs().func:
+                lambda *terms: substitute_ast(def_to_inline.rhs(),
+                                             dict((v,t) for (v,t) in zip(terms, def_to_inline.lhs().terms)))}
+        print "Substitution to perform: %s <=> %s" % (def_to_inline.lhs(), def_to_inline.rhs())
+        for fm in current_fmlas:
+            print "Inline:", fm
+            print "Result:", logic_util.substitute_apply(fm, sub)
+        current_fmlas = [logic_util.substitute_apply(fm, sub) for fm in current_fmlas]
+
+    assert all(not has_second_order_skolems(fmla) for fmla in current_fmlas)
+    return Clauses(fmlas=current_fmlas, defs=defs_to_retain)
+
 def really_close_epr(fmla):
-    """ Convert fmla to E X. A Y. fmla, where X are the skolems in fmla and Y are the variables. """
+    """ Convert fmla to E X. A Y. fmla, where X are the skolems in fmla and Y are the variables.
+     Implicitliy existentially quantified relations are left untouched."""
     skolems = [s for s in used_symbols_ast(fmla) if s.is_skolem()]
     variables = list(used_variables_ast(fmla))
     # TODO: avoid variable name clashes (shouldn't happen, but just to be safe)
     universally_closed = ForAll(variables, fmla) if variables else fmla
-    skvars = [Variable('V' + s.name, s.sort) for s in skolems]
-    universally_closed = rename_ast(universally_closed,dict(zip(skolems,skvars)))
-    return Exists(skvars, universally_closed) if skvars else universally_closed
+
+    skolems_fo = [s for s in skolems if not isinstance(s.sort, FunctionSort)]
+    skvars_fo = [Variable('V' + s.name, s.sort) for s in skolems_fo]
+    print "SO Skolems:", [s for s in skolems if isinstance(s.sort, FunctionSort)]
+    universally_closed_skolem_renamed = rename_ast(universally_closed,dict(zip(skolems_fo,skvars_fo)))
+    return Exists(skvars_fo, universally_closed_skolem_renamed) if skvars_fo else universally_closed_skolem_renamed
 
 for op in lg_ops:
     op.clauses = property(lambda self: formula_to_clauses(self).clauses)
