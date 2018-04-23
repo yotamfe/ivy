@@ -20,6 +20,8 @@ import logging
 import ivy_init
 import ivy_ast
 
+import datetime
+
 diagnose = iu.BooleanParameter("diagnose",False)
 coverage = iu.BooleanParameter("coverage",True)
 
@@ -318,7 +320,7 @@ def infer_safe_summaries():
     else:
         safe_frame = frame_or_cex
         invariant = safe_frame["inv"].get_summary()
-        logger.info("Invariant: %s", invariant)
+        logger.info("Invariant: %s. Time: %s", invariant, datetime.datetime.now())
         logger.info("Invariant as a single formula: %s", invariant.to_single_clauses())
         assert check_any_exported_action_transition(invariant, invariant) is None
 
@@ -334,7 +336,7 @@ def infer_safe_summaries():
         invariant_reduced = minimize_invariant(invariant_reduced_equiv,
                                                lambda candidate, omitted:
                                                     pdr_elements_global_invariant.check_inductive_invariant(candidate))
-        print "Invariant reduced:", invariant_reduced_equiv
+        print "Invariant reduced:", invariant_reduced
 
 
 def usage():
