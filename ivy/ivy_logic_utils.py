@@ -63,8 +63,7 @@ class Clauses(object):
         return [close_epr(c) for c in self.fmlas]
     # TODO: this should not be needed
     def epr_closed(self):
-        assert self.defs == []
-        return Clauses(fmlas=[really_close_epr(c) for c in self.fmlas])
+        return Clauses(fmlas=[really_close_epr(self.to_open_formula())])
     def copy(self):
         return Clauses(list(self.fmlas),list(self.defs))
 #    def define(self,dfn):
@@ -130,7 +129,6 @@ def really_close_epr(fmla):
     universally_closed = ForAll(variables, fmla) if variables else fmla
     skvars = [Variable('V' + s.name, s.sort) for s in skolems]
     universally_closed = rename_ast(universally_closed,dict(zip(skolems,skvars)))
-    print "Closed EPR:", Exists(skvars, universally_closed) if skvars else universally_closed
     return Exists(skvars, universally_closed) if skvars else universally_closed
 
 for op in lg_ops:
