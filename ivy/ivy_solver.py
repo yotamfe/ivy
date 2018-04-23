@@ -741,12 +741,9 @@ def clauses_imply(clauses1, clauses2):
     """
     s = z3.Solver()
     z1 = clauses_to_z3(clauses1)
-    print "Clauses1", z1
 #    print "z1 = {}".format(z1)
     s.add(z1)
-    print "Clauses2", clauses_to_z3(clauses2)
     z2 = not_clauses_to_z3(clauses2)
-    print "Not Clauses2", z2
 #    print "z2 = {}".format(z2)
     s.add(z2)
     return s.check() == z3.unsat

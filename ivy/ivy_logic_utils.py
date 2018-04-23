@@ -61,9 +61,9 @@ class Clauses(object):
     def conjuncts(self):
         assert self.defs == []
         return [close_epr(c) for c in self.fmlas]
-    # TODO: this should not be needed
     def epr_closed(self):
         return Clauses(fmlas=[really_close_epr(self.to_open_formula())])
+    # TODO: this should not be needed
     def copy(self):
         return Clauses(list(self.fmlas),list(self.defs))
 #    def define(self,dfn):
@@ -121,8 +121,6 @@ def close_epr(fmla):
 
 def really_close_epr(fmla):
     """ Convert fmla to E X. A Y. fmla, where X are the skolems in fmla and Y are the variables. """
-    if isinstance(fmla, And):
-        return And(*[close_epr(f) for f in fmla.args])
     skolems = [s for s in used_symbols_ast(fmla) if s.is_skolem()]
     variables = list(used_variables_ast(fmla))
     # TODO: avoid variable name clashes (shouldn't happen, but just to be safe)
