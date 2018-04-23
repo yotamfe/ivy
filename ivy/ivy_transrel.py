@@ -40,6 +40,8 @@ import ivy_logic
 import ivy_logic_utils as lu
 import ivy_utils as iu
 from logic_util import is_tautology_equality
+import ivy_logic_utils
+import ivy_solver
 
 
 def new(sym):
@@ -651,3 +653,25 @@ class History(object):
 
 def use_numerals():
     return iu.use_numerals.get()
+
+def check_tr_implication(prestate_clauses, action_update1, action_update2, domain):
+    # after_action1 = clauses_after_transition(action1, prestate_clauses)
+    # after_action2 = clauses_after_transition(action2, prestate_clauses)
+
+    import ivy_module
+    (updated1, after_action1, _) = action_update1
+    # (updated1, after_action1, _) = action1
+    (updated2, after_action2, _) = action_update2
+    # after_action1 = after_action1.epr_closed()
+    after_action2 = after_action2.epr_closed()
+
+    frame_diff_unchaged = diff_frame(updated1, updated2, domain, new)
+    after_action1 = ivy_logic_utils.and_clauses(after_action1, frame_diff_unchaged)
+
+    print "Action1", after_action1
+    print
+    print "Action2", after_action2
+
+    print "Updated diff", set(updated2) - set(updated1)
+
+    return ivy_solver.clauses_imply(after_action1, after_action2)
