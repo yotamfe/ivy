@@ -207,7 +207,7 @@ def backwards_try_prove_single_goal(predicate, summary_proof_obligation,
 def backwards_prove_at_least_one_goal(frames, current_bound, 
                                       summary_proof_obligations, pdr_elements,
                                       parent_predicate):
-    logger.debug("Can block by refining summeries in: %s", 
+    logger.debug("Can block by refining summaries in: %s",
                  [pred for pred, _ in summary_proof_obligations])
     
     cex = PdrCexNode(parent_predicate)
