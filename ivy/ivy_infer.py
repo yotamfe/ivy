@@ -156,13 +156,13 @@ def are_frames_converged(frame1, frame2):
 class PdrCexNode(object):
     def __init__(self, predicate, children=None):
         super(PdrCexNode, self).__init__()
-        
+
         self.predicate = predicate
-        
+
         if children is None:
             children = []
         self.children = children
-        
+
     def add_child(self, node):
         self.children.append(node)
 
@@ -206,11 +206,11 @@ def backwards_try_prove_single_goal(predicate, summary_proof_obligation,
 # TODO: rename current_bound to current_frame?
 def backwards_prove_at_least_one_goal(frames, current_bound, 
                                       summary_proof_obligations, pdr_elements,
-                                      parent_predicate):
+                                      generating_constraint):
     logger.debug("Can block by refining summaries in: %s",
                  [pred for pred, _ in summary_proof_obligations])
     
-    cex = PdrCexNode(parent_predicate)
+    cex = PdrCexNode(generating_constraint)
     
     for predicate, summary_proof_obligation in summary_proof_obligations:
         logger.debug("Trying to prove %s for predicate %s from frame %d", summary_proof_obligation, 
@@ -254,18 +254,18 @@ def backward_refine_frames_or_counterexample(frames, new_bound,
     while True:
         new_frame_summaries = frames[new_bound].get_summaries_by_symbol_dict()
        
-        (root_predicate, safety_proof_obligations) = pdr_elements.check_summary_safety(new_frame_summaries)
-        if safety_proof_obligations is None:
+        proof_obligations_per_constraint_lst = pdr_elements.check_summary_safety(new_frame_summaries)
+        if not proof_obligations_per_constraint_lst:
             logger.debug("pdr frame %d is safe", new_bound)
             return (True, None)
         
-    
-        successfully_blocked, cex = backwards_prove_at_least_one_goal(frames, new_bound, 
-                                                                 safety_proof_obligations, pdr_elements,
-                                                                 root_predicate)
-        if not successfully_blocked:
-            # TODO: collect counter-trace
-            return (False, cex)
+        for (constraint, obligations_prove_at_least_one) in proof_obligations_per_constraint_lst:
+            successfully_blocked, cex = backwards_prove_at_least_one_goal(frames, new_bound,
+                                                                          obligations_prove_at_least_one, pdr_elements,
+                                                                          constraint)
+            if not successfully_blocked:
+                # TODO: collect counter-trace
+                return (False, cex)
         
 def log_frames(frames, new_bound):
     return # TODO: temp hack (25/3/2018)
@@ -322,7 +322,7 @@ def pdr(pdr_elements):
         fixpoint_summaries = check_pdr_convergence(frames, current_bound)
         if fixpoint_summaries is not None:
             logger.debug("pdr frames at fixpoint")
-            assert pdr_elements.check_summary_safety(fixpoint_summaries) == (None, None)
+            assert pdr_elements.check_summary_safety(fixpoint_summaries) == []
 
             return (True, fixpoint_summaries)
         else:
