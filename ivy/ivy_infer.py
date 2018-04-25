@@ -185,7 +185,7 @@ def backwards_try_prove_single_goal(predicate, summary_proof_obligation,
         previous_bound_proof_obligations_per_constraint = pdr_elements.check_transformability_to_violation(predicate,
                                                                                            previous_frame_summaries,
                                                                                            summary_proof_obligation)
-        if previous_bound_proof_obligations_per_constraint is []:
+        if not previous_bound_proof_obligations_per_constraint:
             logger.debug("pdr goal at frame %d for %s provable from previous frame: %s", 
                          current_bound, predicate, summary_proof_obligation)
             return (True, None)

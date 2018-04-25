@@ -222,7 +222,7 @@ class LinearTransformabilityHornClause(object):
 
     def lhs_assigned(self, summaries_by_pred):
         lhs_summary = summaries_by_pred[self._lhs_pred]
-        substitute_lhs_summary = ivy_logic_utils.and_clauses(*lhs_summary.get_conjuncts_clauses_list())
+        substitute_lhs_summary = ivy_logic_utils.and_clauses(*lhs_summary.get_summary().get_conjuncts_clauses_list())
         return ivy_transrel.conjoin(substitute_lhs_summary, self._lhs_constraint)
 
 class LinearSafetyConstraint(LinearTransformabilityHornClause):
@@ -414,6 +414,18 @@ def minimize_invariant(invariant_clauses_iterable, redundancy_checker):
         invariant_clauses_simplified = clauses_retained | clauses_to_check
 
     return invariant_clauses_simplified
+
+
+# def tr_of_all_exported_actions():
+#     from ivy_interp import State
+#
+#     ag = ivy_art.AnalysisGraph()
+#
+#     pre = State()
+#
+#     # relying on the isolate being created with 'ext' action
+#     action = im.module.actions['ext']
+#     action.update(ag.domain, pre.in_scope)
 
 
 def infer_safe_summaries():
