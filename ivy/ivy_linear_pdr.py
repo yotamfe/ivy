@@ -337,7 +337,7 @@ class LinearPdr(ivy_infer_universal.UnivPdrElements):
             if mid_constraint.rhs_pred() != predicate:
                 continue
 
-            bad_model_lhs = mid_constraint.check_transformability(summaries_by_symbol, proof_obligation)
+            bad_model_lhs = mid_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation))
             if bad_model_lhs is None:
                 continue
 
