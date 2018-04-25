@@ -182,24 +182,25 @@ def backwards_try_prove_single_goal(predicate, summary_proof_obligation,
    
     while True:
         previous_frame_summaries = frames[previous_bound].get_summaries_by_symbol_dict()
-        previous_bound_proof_obligation = pdr_elements.check_transformability_to_violation(predicate,
+        previous_bound_proof_obligations_per_constraint = pdr_elements.check_transformability_to_violation(predicate,
                                                                                            previous_frame_summaries,
                                                                                            summary_proof_obligation)
-        if previous_bound_proof_obligation is None:
+        if previous_bound_proof_obligations_per_constraint is []:
             logger.debug("pdr goal at frame %d for %s provable from previous frame: %s", 
                          current_bound, predicate, summary_proof_obligation)
             return (True, None)
-       
-        (successfully_blocked_in_previous_frame, cex) = backwards_prove_at_least_one_goal(frames, previous_bound,
-                                                                                          previous_bound_proof_obligation, pdr_elements,
-                                                                                          predicate)
-        if not successfully_blocked_in_previous_frame:
-            pdr_elements.mark_reachable(predicate, summary_proof_obligation, 
-                                        frames[current_bound].get_summaries_by_symbol_dict(),
-                                        cex)
-            return (False, cex)
-        else:
-            assert cex is None
+
+        for (constraint, previous_bound_proof_obligation) in previous_bound_proof_obligations_per_constraint:
+            (successfully_blocked_in_previous_frame, cex) = backwards_prove_at_least_one_goal(frames, previous_bound,
+                                                                                              previous_bound_proof_obligation, pdr_elements,
+                                                                                              predicate)
+            if not successfully_blocked_in_previous_frame:
+                pdr_elements.mark_reachable(predicate, summary_proof_obligation,
+                                            frames[current_bound].get_summaries_by_symbol_dict(),
+                                            cex)
+                return (False, cex)
+            else:
+                assert cex is None
         
     return (True, None)
 

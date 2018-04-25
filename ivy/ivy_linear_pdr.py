@@ -190,23 +190,91 @@ class Predicate(object):
     def rhs_assigned(self, clauses):
         return ivy_transrel.new(clauses)
 
+# TODO: currently just a wrapper to be used with diagram calls, refactor to extract the diagram from a model
+# TODO: hold a model and clauses to be used with get_model_clauses e.g. to project on pre-state
 class PdrCexModel(object):
-    def __init__(self):
-        pass
+    def __init__(self, clauses_clauses, core_wrt_clauses, bad_model):
+        self.clauses_clauses = clauses_clauses
+        self.core_wrt_clauses = core_wrt_clauses
+        self.bad_model = bad_model
 
 class LinearTransformabilityHornClause(object):
     """
     Transformability clauses = Predicate on lhs.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, lhs_pred, lhs_constraint):
+        self._lhs_pred = lhs_pred
+        self._lhs_constraint = lhs_constraint
+
+    def lhs_pred(self):
+        return self._lhs_pred
+
+    # def check_transformability(self, summaries_by_pred, bad_clauses):
+        # lhs = self.lhs_assigned(summaries_by_pred)
+        # rhs = self._rhs_pred.rhs_assigned(bad_clauses)
+        # vc = ClausesClauses(lhs, rhs)
+        # cex = vc.get_model()
+        # if cex is None:
+        #     return None
+
+        # return PdrCexModel(cex)
+
+    def lhs_assigned(self, summaries_by_pred):
+        lhs_summary = summaries_by_pred[self._lhs_pred]
+        substitute_lhs_summary = ivy_logic_utils.and_clauses(*lhs_summary.get_conjuncts_clauses_list())
+        return ivy_transrel.conjoin(substitute_lhs_summary, self._lhs_constraint)
+
+class LinearSafetyConstraint(LinearTransformabilityHornClause):
+    def __init__(self, lhs_pred, lhs_constraint, rhs):
+        super(LinearSafetyConstraint, self).__init__(lhs_pred, lhs_constraint)
 
     def check_satisfaction(self, summaries_by_pred):
-        pass
+        # return self.check_transformability(summaries_by_pred, summaries_by_pred)
+
+        assert self._lhs_pred == "inv"
+
+        inv_summary = summaries_by_pred["inv"].get_summary()
+        conjectures_to_verify = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
+
+        for conjecture in conjectures_to_verify:
+            bad_clauses = ivy_logic_utils.dual_clauses(conjecture)
+            inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses])
+            bad_inv_model = inv_but_bad_clauses.get_model()
+            if bad_inv_model is None:
+                continue
+
+            return PdrCexModel(inv_but_bad_clauses, bad_clauses, bad_inv_model)
+
+        return None
+
+class LinearMiddleConstraint(LinearTransformabilityHornClause):
+    def __init__(self, lhs_pred, lhs_constraint, rhs_pred):
+        super(LinearMiddleConstraint, self).__init__(lhs_pred, lhs_constraint)
+        self._rhs_pred = rhs_pred
+
+    def rhs_pred(self):
+        return self._rhs_pred
 
     def check_transformability(self, summaries_by_pred, bad_clauses):
-        pass
+        assert self._rhs_pred == "inv"
+        prestate_summary = summaries_by_pred["inv"].get_summary()
+
+        proof_obligation = ivy_logic_utils.dual_clauses(bad_clauses)
+
+        logger.debug("Single invariant: checking if %s in prestate guarantees %s in poststate", prestate_summary,
+                     proof_obligation)
+
+        countertransition = check_any_exported_action_transition(prestate_summary, ClausesClauses([proof_obligation]))
+
+        if countertransition is None:
+            logger.debug("check single invariant transformability: proof obligation guaranteed by prestate invariant")
+            return None
+
+        prestate = countertransition[0]
+        return PdrCexModel(ClausesClauses([prestate.clauses]),
+                           ivy_logic_utils.dual_clauses(proof_obligation),
+                           None)
 
 class LinearPdr(ivy_infer_universal.UnivPdrElements):
     def __init__(self, preds, init_chc_lst, mid_chc_lst, end_chc_lst):
@@ -224,7 +292,7 @@ class LinearPdr(ivy_infer_universal.UnivPdrElements):
             strengthened_init = ivy_logic_utils.or_clauses(init_requirement, current_init)
             initial_summary[pred] = strengthened_init
 
-        return {pred: ivy_infer.PredicateSummary(pred, initial_summary[pred] for pred in self._preds}
+        return {pred: ivy_infer.PredicateSummary(pred, initial_summary[pred]) for pred in self._preds}
 
     def top_summary(self):
         return {pred: ivy_infer.PredicateSummary(pred, ivy_logic_utils.true_clauses()) for pred in self._preds}
@@ -257,8 +325,8 @@ class LinearPdr(ivy_infer_universal.UnivPdrElements):
                 continue
 
             proof_obligation = self._bad_model_to_proof_obligation(bad_model)
-            proof_obligations.append(safety_constraint,
-                                    [(safety_constraint.lhs_pred(), proof_obligation)])
+            proof_obligations.append((safety_constraint,
+                                      [(safety_constraint.lhs_pred(), proof_obligation)]))
 
         return proof_obligations
 
@@ -275,7 +343,7 @@ class LinearPdr(ivy_infer_universal.UnivPdrElements):
 
             proof_obligation = self._bad_model_to_proof_obligation(bad_model_lhs)
             pre_pred = mid_constraint.lhs_pred()
-            proof_obligations.append([(pre_pred, proof_obligation)])
+            proof_obligations.append((mid_constraint, [(pre_pred, proof_obligation)]))
 
         return proof_obligations
 
@@ -297,7 +365,7 @@ class LinearPdr(ivy_infer_universal.UnivPdrElements):
         poststate_lemma = predicate.rhs_assigned(predicate_lemma)
         poststate_bad = ivy_logic_utils.dual_clauses(poststate_lemma)
 
-        NO_EXTRA_AXIOMS = ivy_logic_utils.true_clauses() # should be part of the predicates
+        NO_EXTRA_AXIOMS = ivy_logic_utils.true_clauses() # should be part of the constraints
         NO_INTERPRETED = None
         res = ivy_transrel.interpolant(combined_lhs_clauses, poststate_bad, NO_EXTRA_AXIOMS, NO_INTERPRETED)
         assert res is not None, "Failure generalizing blocked lemma: pred %s, %s" % (predicate, predicate_lemma)
@@ -349,7 +417,12 @@ def minimize_invariant(invariant_clauses_iterable, redundancy_checker):
 
 
 def infer_safe_summaries():
-    pdr_elements_global_invariant = LinearPdr()
+    init = [("inv", global_initial_state())]
+    # TODO: currently hard coded in the predicate, add flexibility
+    mid = [LinearMiddleConstraint("inv", None, "inv")]
+    end = [LinearSafetyConstraint("inv", ivy_logic_utils.true_clauses(), None)]
+
+    pdr_elements_global_invariant = LinearPdr(["inv"], init, mid, end)
     is_safe, frame_or_cex = ivy_infer.pdr(pdr_elements_global_invariant)
     if not is_safe:
         print "Possibly not safe! - bug or no universal invariant"
