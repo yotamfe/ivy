@@ -52,16 +52,6 @@ class LinearTransformabilityHornClause(object):
     def lhs_pred(self):
         return self._lhs_pred
 
-    # def check_transformability(self, summaries_by_pred, bad_clauses):
-        # lhs = self.lhs_assigned(summaries_by_pred)
-        # rhs = self._rhs_pred.rhs_assigned(bad_clauses)
-        # vc = ClausesClauses(lhs, rhs)
-        # cex = vc.get_model()
-        # if cex is None:
-        #     return None
-
-        # return PdrCexModel(cex)
-
     def lhs_assigned(self, summaries_by_pred):
         lhs_summary = summaries_by_pred[self._lhs_pred]
         substitute_lhs_summary = ivy_logic_utils.and_clauses(*lhs_summary.get_summary().get_conjuncts_clauses_list())
@@ -91,8 +81,9 @@ class LinearMiddleConstraint(LinearTransformabilityHornClause):
     def check_transformability(self, summaries_by_pred, bad_clauses):
         pass
 
-class LinearPdr(ivy_infer_universal.UnivPdrElements):
-    def __init__(self, preds, init_chc_lst, mid_chc_lst, end_chc_lst):
+class LinearPdr(ivy_infer.PdrElements):
+    def __init__(self, preds, init_chc_lst, mid_chc_lst, end_chc_lst, generalizer):
+        super(LinearPdr, self).__init__(generalizer)
         self._preds = preds
 
         self._init_chc = init_chc_lst
@@ -137,7 +128,7 @@ class LinearPdr(ivy_infer_universal.UnivPdrElements):
             if bad_model is None:
                 continue
 
-            proof_obligation = self._bad_model_to_proof_obligation(bad_model)
+            proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model)
             proof_obligations.append((safety_constraint,
                                       [(safety_constraint.lhs_pred(), proof_obligation)]))
 
@@ -154,7 +145,7 @@ class LinearPdr(ivy_infer_universal.UnivPdrElements):
             if bad_model_lhs is None:
                 continue
 
-            proof_obligation = self._bad_model_to_proof_obligation(bad_model_lhs)
+            proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
             pre_pred = mid_constraint.lhs_pred()
             proof_obligations.append((mid_constraint, [(pre_pred, proof_obligation)]))
 
