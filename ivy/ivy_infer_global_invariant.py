@@ -167,13 +167,13 @@ def check_logical_implication(clauses_lst1, clauses_lst2):
                                                                clauses_lst2)
     return all(is_implied_per_clause)
 
-class PdrGlobalInvariant(ivy_infer_universal.UnivPdrElements):
+class PdrGlobalInvariant(ivy_infer.PdrElements):
     def initial_summary(self):
         return {"inv": ivy_infer.PredicateSummary("inv", global_initial_state())}
-    
+
     def top_summary(self):
         return {"inv": ivy_infer.PredicateSummary("inv", ivy_logic_utils.true_clauses())}
-    
+
     def push_forward(self, prev_summaries, current_summaries):
         prev_clauses_lst = prev_summaries["inv"].get_summary().get_conjuncts_clauses_list()
         current_clauses_lst = current_summaries["inv"].get_summary().get_conjuncts_clauses_list()
@@ -190,7 +190,7 @@ class PdrGlobalInvariant(ivy_infer_universal.UnivPdrElements):
             current_summaries["inv"].strengthen(clauses)
 
         return current_summaries
-    
+
     def check_summary_safety(self, summaries):
         inv_summary = summaries["inv"].get_summary()
         conjectures_to_verify = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
@@ -206,52 +206,52 @@ class PdrGlobalInvariant(ivy_infer_universal.UnivPdrElements):
                     [("inv", self._bad_model_to_proof_obligation(inv_but_bad_clauses, bad_clauses, bad_inv_model))])
 
         return (None, None)
-    
+
     def check_transformability_to_violation(self, predicate, summaries_by_symbol, proof_obligation):
         prestate_summary = summaries_by_symbol["inv"].get_summary()
-       
+
         logger.debug("Single invariant: checking if %s in prestate guarantees %s in poststate", prestate_summary, proof_obligation)
-       
+
         countertransition = check_any_exported_action_transition(prestate_summary, ClausesClauses([proof_obligation]))
-       
+
         if countertransition is None:
             logger.debug("check single invariant transformability: proof obligation guaranteed by prestate invariant")
             return None
-       
+
         prestate = countertransition[0]
-        return [("inv", self._bad_model_to_proof_obligation(ClausesClauses([prestate.clauses]), 
-                                                            ivy_logic_utils.dual_clauses(proof_obligation), 
+        return [("inv", self._bad_model_to_proof_obligation(ClausesClauses([prestate.clauses]),
+                                                            ivy_logic_utils.dual_clauses(proof_obligation),
                                                             None))]
-        
-    def mark_reachable(self, predicate, summary_proof_obligation, 
+
+    def mark_reachable(self, predicate, summary_proof_obligation,
                        summaries, cex_info):
         pass
-    
+
     def is_known_to_be_reachable(self, predicate, summary_proof_obligation,
                                  summaries):
         return False, None
-        
+
     def generalize_intransformability(self, predicate, prestate_summaries, poststate_clauses):
         import ivy_module as im
         import ivy_transrel
         from ivy_logic_utils import and_clauses
         from ivy_interp import State
-        
+
         assert predicate == "inv"
-       
+
         prestate_clauses = prestate_summaries["inv"].get_summary()
 
         # relying on isolate context created earlier
         ag = ivy_art.AnalysisGraph()
-     
+
         pre = State()
         pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
 
         # relying on the isolate being created with 'ext' action
         action = im.module.actions['ext']
-        
+
         post = ivy_logic_utils.dual_clauses(poststate_clauses)
-        
+
         axioms = ivy_all_axioms()
         NO_INTERPRETED = None
         res = ivy_transrel.forward_interpolant(pre.clauses, action.update(ag.domain,pre.in_scope),post,axioms,NO_INTERPRETED)
@@ -317,7 +317,7 @@ class GlobalSafetyClause(ivy_linear_pdr.LinearSafetyConstraint):
             if bad_inv_model is None:
                 continue
 
-            return ivy_infer.PdrCexModel(inv_but_bad_clauses, bad_clauses, bad_inv_model)
+            return ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses())
 
         return None
 
@@ -341,9 +341,7 @@ class GlobalConsecutionClause(ivy_linear_pdr.LinearMiddleConstraint):
             return None
 
         prestate = countertransition[0]
-        return ivy_infer.PdrCexModel(ClausesClauses([prestate.clauses]),
-                                     ivy_logic_utils.dual_clauses(proof_obligation),
-                                     None)
+        return ivy_infer.PdrCexModel(None, prestate.clauses)
 
 def tr_of_all_exported_actions():
     from ivy_interp import State
@@ -367,7 +365,7 @@ def infer_safe_summaries():
     mid = [GlobalConsecutionClause()]
     end = [GlobalSafetyClause()]
 
-    pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(["inv"], init, mid, end)
+    pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(["inv"], init, mid, end, ivy_infer_universal.UnivGeneralizer())
     is_safe, frame_or_cex = ivy_infer.pdr(pdr_elements_global_invariant)
     if not is_safe:
         print "Possibly not safe! - bug or no universal invariant"

@@ -79,13 +79,24 @@ class Predicate(object):
 # TODO: currently just a wrapper to be used with diagram calls, refactor to extract the diagram from a model
 # TODO: hold a model and clauses to be used with get_model_clauses e.g. to project on pre-state
 class PdrCexModel(object):
-    def __init__(self, clauses_clauses, core_wrt_clauses, bad_model):
-        self.clauses_clauses = clauses_clauses
-        self.core_wrt_clauses = core_wrt_clauses
-        self.bad_model = bad_model
+    def __init__(self, bad_model, clauses_of_interest):
+        self._bad_model = bad_model
+        self._clauses_of_interest = clauses_of_interest
+
+    def diagrarm_abstraction(self):
+        clauses = self._clauses_of_interest
+        logger.debug("clauses for diagram: %s", clauses)
+        # TODO: we sometimes use self._bad_model = None, then the we take an arbitrary model of self._clauses_of_interest. It's confusing, eliminate it
+        diagram = ivy_solver.clauses_model_to_diagram(clauses, model=self._bad_model)
+        logger.debug("calculated diagram of bad state: %s", diagram)
+        return diagram
     
 class PdrElements(object):
     __metaclass__ = abc.ABCMeta
+
+    def __init__(self, generalizer):
+        super(PdrElements, self).__init__()
+        self._generalizer = generalizer
     
     @abc.abstractmethod
     def initial_summary(self):
