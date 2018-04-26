@@ -64,6 +64,25 @@ class ClausesClauses(object):
         
     def __str__(self, *args, **kwargs):
         return str(self._conjuncts_clauses_list)
+
+
+class Predicate(object):
+    def __init__(self, name):
+        self._name = name
+
+    def __str__(self):
+        return self._name
+
+    def rhs_assigned(self, clauses):
+        return ivy_transrel.new(clauses)
+
+# TODO: currently just a wrapper to be used with diagram calls, refactor to extract the diagram from a model
+# TODO: hold a model and clauses to be used with get_model_clauses e.g. to project on pre-state
+class PdrCexModel(object):
+    def __init__(self, clauses_clauses, core_wrt_clauses, bad_model):
+        self.clauses_clauses = clauses_clauses
+        self.core_wrt_clauses = core_wrt_clauses
+        self.bad_model = bad_model
     
 class PdrElements(object):
     __metaclass__ = abc.ABCMeta
