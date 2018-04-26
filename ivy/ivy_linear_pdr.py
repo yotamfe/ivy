@@ -298,22 +298,20 @@ class LinearPdr(ivy_infer_universal.UnivPdrElements):
         return {pred: ivy_infer.PredicateSummary(pred, ivy_logic_utils.true_clauses()) for pred in self._preds}
 
     def push_forward(self, prev_summaries, current_summaries):
-        # for pred in prev_summaries:
-        #     prev_clauses_lst = prev_summaries[pred].get_summary().get_conjuncts_clauses_list()
-        #     current_clauses_lst = current_summaries[pred].get_summary().get_conjuncts_clauses_list()
-        #
-        #     for clauses in prev_clauses_lst:
-        #         if clauses in current_clauses_lst:
-        #             continue
-        #
-        #         transformability_cex = self.check_transformability_to_violation(pred, prev_summaries, clauses)
-        #         if transformability_cex is not None:
-        #             continue
-        #
-        #         logging.debug("Pushing to next frame for %s: %s", pred, clauses)
-        #         current_summaries[pred].strengthen(clauses)
+        for pred in prev_summaries:
+            prev_clauses_lst = prev_summaries[pred].get_summary().get_conjuncts_clauses_list()
+            current_clauses_lst = current_summaries[pred].get_summary().get_conjuncts_clauses_list()
 
-        # TODO: resurrect push forward
+            for clauses in prev_clauses_lst:
+                if clauses in current_clauses_lst:
+                    continue
+
+                transformability_cex = self.check_transformability_to_violation(pred, prev_summaries, clauses)
+                if transformability_cex:
+                    continue
+
+                logging.debug("Pushing to next frame for %s: %s", pred, clauses)
+                current_summaries[pred].strengthen(clauses)
 
         return current_summaries
 
