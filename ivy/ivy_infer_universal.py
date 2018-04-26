@@ -17,6 +17,8 @@ class UnivPdrElements(ivy_infer.PdrElements):
         logger.debug("calculated diagram of bad state: %s", diagram)
         return diagram
     
-    def _bad_model_to_proof_obligation(self, clauses_clauses, core_wrt_clauses, bad_model):
-        block_model_clauses = ivy_logic_utils.dual_clauses(self.__updr_generalize_bad_model(clauses_clauses, bad_model))
+    # def _bad_model_to_proof_obligation(self, clauses_clauses, core_wrt_clauses, bad_model):
+    def _bad_model_to_proof_obligation(self, bad_model):
+        # block_model_clauses = ivy_logic_utils.dual_clauses(self.__updr_generalize_bad_model(clauses_clauses, bad_model))
+        block_model_clauses = ivy_logic_utils.dual_clauses(self.__updr_generalize_bad_model(bad_model.clauses_clauses, bad_model.bad_model))
         return block_model_clauses
