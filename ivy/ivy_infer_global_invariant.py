@@ -54,114 +54,6 @@ def ivy_all_axioms():
     # and_clauses on an empty list causes problems, later fails in clauses_using_symbols
     return ivy_logic_utils.true_clauses()
 
-def check_any_exported_action_transition(prestate_clauses, poststate_obligation):
-    import ivy_logic as il
-    import logic as lg
-    from ivy_interp import EvalContext
-    import ivy_module as im
-    import ivy_logic_utils as ilu
-    from ivy_solver import get_small_model
-    from ivy_logic_utils import and_clauses, dual_clauses
-    from ivy_interp import State
-
-    if True:
-        # relying on isolate context created earlier
-        ag = ivy_art.AnalysisGraph()
-
-        pre = State()
-        pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
-        pre.clauses = and_clauses(pre.clauses, ivy_all_axioms())
-
-        # relies on the isolate being created with 'ext' action
-        action = im.module.actions['ext']
-        with EvalContext(check=False):
-            post = ag.execute(action, pre, None, 'ext')
-
-        post.clauses = ilu.true_clauses()
-
-        to_test = poststate_obligation.get_conjuncts_clauses_list()
-
-
-        while len(to_test) > 0:
-            conj = to_test.pop(0)
-            used_names = frozenset(x.name for x in il.sig.symbols.values())
-            def witness(v):
-                c = lg.Const('@' + v.name, v.sort)
-                assert c.name not in used_names
-                return c
-
-
-            clauses = dual_clauses(conj, witness)
-            history = ag.get_history(post)
-
-            _get_model_clauses = lambda clauses, final_cond=False: get_small_model(
-                clauses,
-                sorted(il.sig.sorts.values()),
-                [],
-                final_cond = final_cond
-            )
-
-            #res = ag.bmc(post, clauses, None, None, _get_model_clauses)
-            res = ag.bmc(post, clauses)
-
-            if res is not None:
-                assert len(res.states) == 2
-                return res.states
-            else:
-                return None
-
-            # attempt to mimic generalize_intransformability: (29/3/2018)
-            # gap is to take only the prestate of the cti and pass it forwards (to the diagram)
-            #
-            # ag = ivy_art.AnalysisGraph()
-            #
-            # pre = State()
-            # pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
-            #
-            # # relying on the isolate being created with 'ext' action
-            # action = im.module.actions['ext']
-            #
-            # post = ivy_logic_utils.dual_clauses(conj)
-            #
-            # axioms = ivy_all_axioms()
-            # import ivy_transrel
-            # pre_and_tr = ivy_transrel.forward_image(pre.clauses, axioms,
-            #                                         action.update(ag.domain, pre.in_scope))
-            # vc = ClausesClauses([pre_and_tr, post])
-            # cti = vc.get_model()
-            # if cti is None:
-            #     continue
-            #
-            # return (vc, cti)
-
-            # return None
-
-        # TODO: attempt to mimic the new ivy_check (26/3/2018)
-        # while len(to_test) > 0:
-        #     conj = to_test.pop(0)
-        #     assert conj.is_universal_first_order(), conj
-        #     # used_names = frozenset(x.name for x in il.sig.symbols.values())
-        #     # def witness(v):
-        #     #     c = lg.Const('@' + v.name, v.sort)
-        #     #     assert c.name not in used_names
-        #     #     return c
-        #
-        #     # clauses_to_check = dual_clauses(conj, witness)
-        #     clauses_to_check = dual_clauses(conj)
-        #
-        #     # based on ivy_check.check_fcs_in_state()
-        #     history = ag.get_history(post)
-        #     clauses = history.post
-        #     clauses = ivy_logic_utils.and_clauses(clauses, im.module.background_theory())
-        #     model = ivy_transrel.small_model_clauses(clauses, final_cond=clauses_to_check, shrink=True)
-        #     if model is None:
-        #         continue
-        #
-        #     # based on ivy_check.MatchHandler.__init__
-        #     prestate_model_clauses = ivy_solver.clauses_model_to_clauses(clauses, model=model, numerals=True)
-        #     return prestate_model_clauses
-        #
-        # return None
 
 def global_consecution_clause():
     # relies on the isolate being created with 'ext' action
@@ -246,7 +138,7 @@ def infer_safe_summaries():
         invariant = safe_frame["inv"].get_summary()
         logger.info("Invariant: %s. Time: %s", invariant, datetime.datetime.now())
         logger.info("Invariant as a single formula: %s", invariant.to_single_clauses())
-        assert check_any_exported_action_transition(invariant, invariant) is None
+        assert global_safety_clause().check_satisfaction(safe_frame) is None
 
         invariant_reduced_equiv = minimize_invariant(invariant.get_conjuncts_clauses_list(),
                                                      lambda candidate, omitted: check_logical_implication(candidate,
