@@ -251,9 +251,9 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         return None
 
-class EdgeInclusionClause(ivy_linear_pdr.LinearMiddleConstraint):
+class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
     def __init__(self, lhs_pred, edge_action_name, rhs_pred):
-        super(EdgeInclusionClause, self).__init__(lhs_pred, edge_action_name, rhs_pred)
+        super(SummaryPostSummaryClause, self).__init__(lhs_pred, edge_action_name, rhs_pred)
         self._edge_action_name = edge_action_name
 
     def check_transformability(self, summaries_by_pred, bad_clauses):
@@ -316,7 +316,7 @@ def infer_safe_summaries():
         ("tag_unlock", "tag_unlock", 'ext:lock')
     ]
 
-    mid = [EdgeInclusionClause(s1, action, s2) for (s1, s2, action) in edges]
+    mid = [SummaryPostSummaryClause(s1, action, s2) for (s1, s2, action) in edges]
     end = [SafetyOfStateClause(s) for s in states]
 
     pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(states, init, mid, end,

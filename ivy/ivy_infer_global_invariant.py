@@ -165,7 +165,7 @@ def check_any_exported_action_transition(prestate_clauses, poststate_obligation)
 
 def global_consecution_clause():
     # relies on the isolate being created with 'ext' action
-    return ivy_infer_chc_linear_system.EdgeInclusionClause("inv", 'ext', "inv")
+    return ivy_infer_chc_linear_system.SummaryPostSummaryClause("inv", 'ext', "inv")
 
 def global_safety_clause():
     return ivy_infer_chc_linear_system.SafetyOfStateClause("inv")
