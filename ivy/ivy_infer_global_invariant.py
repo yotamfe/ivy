@@ -252,6 +252,34 @@ class GlobalConsecutionClause(ivy_linear_pdr.LinearMiddleConstraint):
         prestate = countertransition[0]
         return ivy_infer.PdrCexModel(None, prestate.clauses)
 
+    def generalize_intransformability(self, prestate_summaries, lemma):
+        # TODO: hack for global inductive invariant, just for checking what's going on with the rest of the code :)
+
+        import ivy_module as im
+        import ivy_transrel
+        from ivy_logic_utils import and_clauses
+        from ivy_interp import State
+
+        prestate_clauses = prestate_summaries["inv"].get_summary()
+
+        # relying on isolate context created earlier
+        ag = ivy_art.AnalysisGraph()
+
+        pre = State()
+        pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
+
+        # relying on the isolate being created with 'ext' action
+        action = im.module.actions['ext']
+
+        post = ivy_logic_utils.dual_clauses(lemma)
+
+        axioms = ivy_all_axioms()
+        NO_INTERPRETED = None
+        res = ivy_transrel.forward_interpolant(pre.clauses, action.update(ag.domain, pre.in_scope), post, axioms,
+                                               NO_INTERPRETED)
+        assert res != None
+        return res[1]
+
 def tr_of_all_exported_actions():
     from ivy_interp import State
 
