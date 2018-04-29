@@ -73,6 +73,7 @@ class LinearMiddleConstraint(LinearTransformabilityHornClause):
     def __init__(self, lhs_pred, lhs_constraint, rhs_pred):
         super(LinearMiddleConstraint, self).__init__(lhs_pred, lhs_constraint)
         self._rhs_pred = rhs_pred
+        self._lhs_constraint = lhs_constraint
 
     def rhs_pred(self):
         return self._rhs_pred
@@ -172,7 +173,7 @@ class LinearPdr(ivy_infer.PdrElements):
                 continue
 
             generalization_for_clause = mid_constraint.generalize_intransformability(prestate_summaries,
-                                                                                    lemma)
+                                                                                     lemma)
             lemma_generalization = ivy_logic_utils.or_clauses(lemma_generalization, generalization_for_clause)
 
         return lemma_generalization
