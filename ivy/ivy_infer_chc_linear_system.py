@@ -20,8 +20,7 @@ import ivy_infer
 import ivy_linear_pdr
 import ivy_interp as itp
 import ivy_infer_universal
-
-import datetime
+import ivy_transrel
 
 logger = logging.getLogger(__file__)
 
@@ -45,32 +44,33 @@ def ivy_all_axioms():
     return ivy_logic_utils.true_clauses()
 
 
-
 def check_tr_implication(prestate_clauses, action1, action2):
-    import ivy_transrel
-    return ivy_transrel.check_tr_implication(prestate_clauses,
-                                             action_update(action1), action_update(action2),
-                                             get_domain())
+    cex = ivy_transrel.check_tr_implication_or_cex_may_diverge(prestate_clauses.to_single_clauses(),
+                                                               action_update(action1), action_update(action2),
+                                                               get_domain())
+    if cex is None:
+        return None
+
+    return ivy_infer.PdrCexModel(cex, clauses_of_interest=prestate_clauses)
 
 
-    #####################################################################
-
-    from ivy_interp import EvalContext
-    import ivy_module as im
-    from ivy_logic_utils import and_clauses, dual_clauses
-    from ivy_interp import State
-
-    ag = ivy_art.AnalysisGraph()
-    pre = State()
-    pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
-    pre.clauses = and_clauses(pre.clauses, ivy_all_axioms())
-    # relies on the isolate being created with 'ext' action
-    with EvalContext(check=False):
-        post = ag.execute(action2, pre, None, 'ext')
-
-    res = ag.bmc(post, after_action2)
-
-    return res is None
+    #
+    # from ivy_interp import EvalContext
+    # import ivy_module as im
+    # from ivy_logic_utils import and_clauses, dual_clauses
+    # from ivy_interp import State
+    #
+    # ag = ivy_art.AnalysisGraph()
+    # pre = State()
+    # pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
+    # pre.clauses = and_clauses(pre.clauses, ivy_all_axioms())
+    # # relies on the isolate being created with 'ext' action
+    # with EvalContext(check=False):
+    #     post = ag.execute(action2, pre, None, 'ext')
+    #
+    # res = ag.bmc(post, after_action2)
+    #
+    # return res is None
 
 def get_domain():
     return ivy_art.AnalysisGraph().domain
@@ -88,20 +88,20 @@ def test_tr_implication():
     action_disjunction = ivy_actions.ChoiceAction(im.module.actions['ext:send'],
                                                   im.module.actions['ext:receive'])
 
-    is_subsumed = check_tr_implication(ClausesClauses([ivy_logic_utils.true_clauses()]),
-                                       im.module.actions['ext:send'],
-                                       action_disjunction)
-    assert is_subsumed
+    subsumption_cex = check_tr_implication(ClausesClauses([ivy_logic_utils.true_clauses()]),
+                                           im.module.actions['ext:send'],
+                                           action_disjunction)
+    assert subsumption_cex is None
 
-    is_subsumed = check_tr_implication(ClausesClauses([ivy_logic_utils.true_clauses()]),
-                                       action_disjunction,
-                                       im.module.actions['ext:send'])
-    assert not is_subsumed
+    subsumption_cex = check_tr_implication(ClausesClauses([ivy_logic_utils.true_clauses()]),
+                                           action_disjunction,
+                                           im.module.actions['ext:send'])
+    assert subsumption_cex is not None
 
-    is_subsumed = check_tr_implication(ClausesClauses([ivy_logic_utils.true_clauses()]),
-                                       im.module.actions['ext:receive2'],
-                                       im.module.actions['ext:receive'])
-    assert is_subsumed
+    subsumption_cex = check_tr_implication(ClausesClauses([ivy_logic_utils.true_clauses()]),
+                                           im.module.actions['ext:receive2'],
+                                           im.module.actions['ext:receive'])
+    assert subsumption_cex is None
 
     assert False, "Success"
 
@@ -251,11 +251,28 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         return None
 
+def tr_of_all_exported_actions():
+    from ivy_interp import State
+
+    ag = ivy_art.AnalysisGraph()
+
+    pre = State()
+
+    # relying on the isolate being created with 'ext' action
+    action = im.module.actions['ext']
+    update = action.update(ag.domain, pre.in_scope)
+
+    axioms = ivy_all_axioms()
+
+    return ivy_transrel.forward_image(ivy_logic_utils.true_clauses(),axioms,update)
+
 class OutEdgesConveringClause(ivy_linear_pdr.LinearSafetyConstraint):
-    def __init__(self, pred):
+    def __init__(self, pred, out_edges_actions):
         super(OutEdgesConveringClause, self).__init__(pred, ivy_logic_utils.true_clauses())
+        self._out_edges_actions = out_edges_actions
 
     def check_satisfaction(self, summaries_by_pred):
+        check_tr_implication()
         inv_summary = summaries_by_pred[self._lhs_pred].get_summary()
         conjectures_to_verify = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
 
@@ -321,6 +338,9 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
 
 
 def infer_safe_summaries():
+    test_tr_implication()
+    assert False
+
     states = ["tag_server", "tag_grant", "tag_client", "tag_unlock"]
     init = [("tag_grant", global_initial_state())]
     edges = [
