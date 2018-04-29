@@ -171,8 +171,8 @@ class LinearPdr(ivy_infer.PdrElements):
             if mid_constraint.rhs_pred() != predicate:
                 continue
 
-            generlization_for_clause = mid_constraint.generalize_intransformability(prestate_summaries,
+            generalization_for_clause = mid_constraint.generalize_intransformability(prestate_summaries,
                                                                                     lemma)
-            lemma_generalization = ivy_logic_utils.or_clauses(lemma_generalization, generlization_for_clause)
+            lemma_generalization = ivy_logic_utils.or_clauses(lemma_generalization, generalization_for_clause)
 
         return lemma_generalization
