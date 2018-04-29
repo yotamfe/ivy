@@ -45,23 +45,23 @@ class LinearTransformabilityHornClause(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, lhs_pred, lhs_constraint):
+    def __init__(self, lhs_pred):
         self._lhs_pred = lhs_pred
-        self._lhs_constraint = lhs_constraint
+        # self._lhs_constraint = lhs_constraint
 
     def lhs_pred(self):
         return self._lhs_pred
 
-    def lhs_assigned(self, summaries_by_pred):
-        lhs_summary = summaries_by_pred[self._lhs_pred]
-        substitute_lhs_summary = ivy_logic_utils.and_clauses(*lhs_summary.get_summary().get_conjuncts_clauses_list())
-        return ivy_transrel.conjoin(substitute_lhs_summary, self._lhs_constraint)
+    # def lhs_assigned(self, summaries_by_pred):
+    #     lhs_summary = summaries_by_pred[self._lhs_pred]
+    #     substitute_lhs_summary = ivy_logic_utils.and_clauses(*lhs_summary.get_summary().get_conjuncts_clauses_list())
+    #     return ivy_transrel.conjoin(substitute_lhs_summary, self._lhs_constraint)
 
 class LinearSafetyConstraint(LinearTransformabilityHornClause):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, lhs_pred, lhs_constraint):
-        super(LinearSafetyConstraint, self).__init__(lhs_pred, lhs_constraint)
+        super(LinearSafetyConstraint, self).__init__(lhs_pred)
 
     @abc.abstractmethod
     def check_satisfaction(self, summaries_by_pred):
@@ -71,7 +71,7 @@ class LinearMiddleConstraint(LinearTransformabilityHornClause):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, lhs_pred, lhs_constraint, rhs_pred):
-        super(LinearMiddleConstraint, self).__init__(lhs_pred, lhs_constraint)
+        super(LinearMiddleConstraint, self).__init__(lhs_pred)
         self._rhs_pred = rhs_pred
         self._lhs_constraint = lhs_constraint
 

@@ -251,6 +251,25 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         return None
 
+class OutEdgesConveringClause(ivy_linear_pdr.LinearSafetyConstraint):
+    def __init__(self, pred):
+        super(OutEdgesConveringClause, self).__init__(pred, ivy_logic_utils.true_clauses())
+
+    def check_satisfaction(self, summaries_by_pred):
+        inv_summary = summaries_by_pred[self._lhs_pred].get_summary()
+        conjectures_to_verify = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
+
+        for conjecture in conjectures_to_verify:
+            bad_clauses = ivy_logic_utils.dual_clauses(conjecture)
+            inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses])
+            bad_inv_model = inv_but_bad_clauses.get_model()
+            if bad_inv_model is None:
+                continue
+
+            return ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses())
+
+        return None
+
 class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
     def __init__(self, lhs_pred, edge_action_name, rhs_pred):
         super(SummaryPostSummaryClause, self).__init__(lhs_pred, edge_action_name, rhs_pred)
