@@ -244,7 +244,7 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
             if cex is None:
                 continue
 
-            logging.debug("Check covered failed: %s doesn't cover action %s", accumulated_pre, action_check_covered)
+            logger.debug("Check covered failed: %s doesn't cover action %s", accumulated_pre, action_check_covered)
 
             print "CHECK Check action %s wrt %s, starting in %s" % (action_check_covered, accumulated_pre, summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses())
             print "MODEL", ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True).diagrarm_abstraction()
@@ -339,7 +339,7 @@ def infer_safe_summaries():
     else:
         safe_frame = frame_or_cex
         for state, summary in safe_frame.iteritems():
-            logging.info("Summary of %s: %s", state, summary.get_summary())
+            logger.info("Summary of %s: %s", state, summary.get_summary())
 
         # TODO: algorithm for minimization?
         # invariant = safe_frame["inv"].get_summary()
