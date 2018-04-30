@@ -655,6 +655,10 @@ def use_numerals():
     return iu.use_numerals.get()
 
 def check_tr_implication_or_cex_may_diverge(prestate_clauses, action_update1, action_update2, domain):
+    vc = tr_implication_verification_condition(prestate_clauses, action_update1, action_update2, domain)
+    return ivy_solver.get_model_clauses(vc)
+
+def tr_implication_verification_condition(prestate_clauses, action_update1, action_update2, domain):
     # after_action1 = clauses_after_transition(action1, prestate_clauses)
     # after_action2 = clauses_after_transition(action2, prestate_clauses)
 
@@ -665,15 +669,14 @@ def check_tr_implication_or_cex_may_diverge(prestate_clauses, action_update1, ac
     # after_action1 = after_action1.epr_closed()
     after_action2 = after_action2.epr_closed()
 
-    frame_diff_unchaged = diff_frame(updated1, updated2, domain, new)
-    after_action1 = ivy_logic_utils.and_clauses(after_action1, frame_diff_unchaged)
+    frame_diff_unchanged = diff_frame(updated1, updated2, domain, new)
+    after_action1 = ivy_logic_utils.and_clauses(after_action1, frame_diff_unchanged)
 
-    print "Action1", after_action1
-    print
-    print "Action2", after_action2
+    # print "Action1", after_action1
+    # print
+    # print "Action2", after_action2
+    #
+    # print "Updated diff", set(updated2) - set(updated1)
 
-    print "Updated diff", set(updated2) - set(updated1)
-
-    return ivy_solver.get_model_clauses(ivy_logic_utils.and_clauses(prestate_clauses, after_action1, ivy_logic_utils.dual_clauses(after_action2)))
-
-    # return ivy_solver.clauses_imply(after_action1, after_action2)
+    vc = ivy_logic_utils.and_clauses(prestate_clauses, after_action1, ivy_logic_utils.dual_clauses(after_action2))
+    return vc

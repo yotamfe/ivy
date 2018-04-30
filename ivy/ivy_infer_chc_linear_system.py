@@ -21,6 +21,8 @@ import ivy_linear_pdr
 import ivy_interp as itp
 import ivy_infer_universal
 import ivy_transrel
+import ivy_actions
+import ivy_solver
 
 logger = logging.getLogger(__file__)
 
@@ -266,26 +268,24 @@ def tr_of_all_exported_actions():
 
     return ivy_transrel.forward_image(ivy_logic_utils.true_clauses(),axioms,update)
 
-class OutEdgesConveringClause(ivy_linear_pdr.LinearSafetyConstraint):
+class OutEdgesConveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
     def __init__(self, pred, out_edges_actions):
-        super(OutEdgesConveringClause, self).__init__(pred, ivy_logic_utils.true_clauses())
+        super(OutEdgesConveringTrClause, self).__init__(pred, ivy_logic_utils.true_clauses())
         self._out_edges_actions = out_edges_actions
 
     def check_satisfaction(self, summaries_by_pred):
-        check_tr_implication()
-        inv_summary = summaries_by_pred[self._lhs_pred].get_summary()
-        conjectures_to_verify = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
+        out_edges_disjunction_action = ivy_actions.ChoiceAction(*[im.module.actions[action_name] for action_name in self._out_edges_actions])
 
-        for conjecture in conjectures_to_verify:
-            bad_clauses = ivy_logic_utils.dual_clauses(conjecture)
-            inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses])
-            bad_inv_model = inv_but_bad_clauses.get_model()
-            if bad_inv_model is None:
-                continue
+        # TODO: improve readability here..
+        vc = ivy_transrel.tr_implication_verification_condition(summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses(),
+                                                                action_update(im.module.actions['ext']),
+                                                                action_update(out_edges_disjunction_action),
+                                                                get_domain())
+        cex = ivy_solver.get_model_clauses(vc)
+        if cex is None:
+            return None
 
-            return ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses())
-
-        return None
+        return ivy_infer.PdrCexModel(cex, vc, project_pre=True)
 
 class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
     def __init__(self, lhs_pred, edge_action_name, rhs_pred):
@@ -337,10 +337,15 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         return res[1]
 
 
-def infer_safe_summaries():
-    test_tr_implication()
-    assert False
+def out_edge_covering_tr_constraints(states, edges):
+    constraints = []
+    for state in states:
+        out_actions = [action for (s1, _, action) in edges if s1 == state]
+        constraints.append(OutEdgesConveringTrClause(state, out_actions))
 
+    return constraints
+
+def infer_safe_summaries():
     states = ["tag_server", "tag_grant", "tag_client", "tag_unlock"]
     init = [("tag_grant", global_initial_state())]
     edges = [
@@ -356,7 +361,9 @@ def infer_safe_summaries():
     ]
 
     mid = [SummaryPostSummaryClause(s1, action, s2) for (s1, s2, action) in edges]
-    end = [SafetyOfStateClause(s) for s in states]
+    end_state_safety = [SafetyOfStateClause(s) for s in states]
+    end_state_cover_tr = out_edge_covering_tr_constraints(states, edges)
+    end = end_state_safety + end_state_cover_tr
 
     pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(states, init, mid, end,
                                                              ivy_infer_universal.UnivGeneralizer())

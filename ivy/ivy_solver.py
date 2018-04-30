@@ -1212,9 +1212,12 @@ def bound_quantifiers_clauses(h,clauses,reps):
        Herbrand model h. This applies only to quantifiers in the constraints of
        "clauses" and not to the definitions. The map reps gives representatives
        for the terms in the Herbrand universe."""
+   # TODO: doesn't work correctly for bound variables (by universal quantifiers), as bq ignores the location of the quantifier
 
    def bdv(v):
        """ Return a formula bounding a variable of ubninterpreted sort """
+       if v.sort == lg.BooleanSort():
+           return ivy_logic.true # No need to bound (I think, YF)
        eqs = [ivy_logic.Equals(v,reps[c.rep]) for c in h.sort_universe(v.sort)]
        return ivy_logic.Or(*eqs)
 
