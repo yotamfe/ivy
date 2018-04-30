@@ -46,66 +46,12 @@ def ivy_all_axioms():
     return ivy_logic_utils.true_clauses()
 
 
-def check_tr_implication(prestate_clauses, action1, action2):
-    cex = ivy_transrel.check_tr_implication_or_cex_may_diverge(prestate_clauses.to_single_clauses(),
-                                                               action_update(action1), action_update(action2),
-                                                               get_domain())
-    if cex is None:
-        return None
-
-    return ivy_infer.PdrCexModel(cex, clauses_of_interest=prestate_clauses)
-
-
-    #
-    # from ivy_interp import EvalContext
-    # import ivy_module as im
-    # from ivy_logic_utils import and_clauses, dual_clauses
-    # from ivy_interp import State
-    #
-    # ag = ivy_art.AnalysisGraph()
-    # pre = State()
-    # pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
-    # pre.clauses = and_clauses(pre.clauses, ivy_all_axioms())
-    # # relies on the isolate being created with 'ext' action
-    # with EvalContext(check=False):
-    #     post = ag.execute(action2, pre, None, 'ext')
-    #
-    # res = ag.bmc(post, after_action2)
-    #
-    # return res is None
-
 def get_domain():
     return ivy_art.AnalysisGraph().domain
 
 def action_update(action):
     pre = ivy_interp.State()
     return action.update(get_domain(), pre.in_scope)
-
-def test_tr_implication():
-    import ivy_actions
-    ivy_actions.set_determinize(False)
-    # action_disjunction = ivy_actions.join_action(action_update(im.module.actions['ext:send']),
-    #                                              action_update(im.module.actions['ext:receive']),
-    #                                              get_domain())
-    action_disjunction = ivy_actions.ChoiceAction(im.module.actions['ext:send'],
-                                                  im.module.actions['ext:receive'])
-
-    subsumption_cex = check_tr_implication(ClausesClauses([ivy_logic_utils.true_clauses()]),
-                                           im.module.actions['ext:send'],
-                                           action_disjunction)
-    assert subsumption_cex is None
-
-    subsumption_cex = check_tr_implication(ClausesClauses([ivy_logic_utils.true_clauses()]),
-                                           action_disjunction,
-                                           im.module.actions['ext:send'])
-    assert subsumption_cex is not None
-
-    subsumption_cex = check_tr_implication(ClausesClauses([ivy_logic_utils.true_clauses()]),
-                                           im.module.actions['ext:receive2'],
-                                           im.module.actions['ext:receive'])
-    assert subsumption_cex is None
-
-    assert False, "Success"
 
 
 def global_initial_state():
@@ -253,39 +199,59 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         return None
 
-def tr_of_all_exported_actions():
-    from ivy_interp import State
+class AutomatonEdge(object):
+    def __init__(self, action_name, precondition=ivy_logic_utils.true_clauses()):
+        self._action_name = action_name
+        self._precondition = precondition
 
-    ag = ivy_art.AnalysisGraph()
+    def get_action_name(self):
+        return self._action_name
 
-    pre = State()
+    def get_precondition(self):
+        return self._precondition
 
-    # relying on the isolate being created with 'ext' action
-    action = im.module.actions['ext']
-    update = action.update(ag.domain, pre.in_scope)
+    def __repr__(self):
+        return "%s assume %s" % (self._action_name, self._precondition)
 
-    axioms = ivy_all_axioms()
 
-    return ivy_transrel.forward_image(ivy_logic_utils.true_clauses(),axioms,update)
-
-class OutEdgesConveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
+class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
     def __init__(self, pred, out_edges_actions):
-        super(OutEdgesConveringTrClause, self).__init__(pred, ivy_logic_utils.true_clauses())
+        super(OutEdgesCoveringTrClause, self).__init__(pred, ivy_logic_utils.true_clauses())
+
         self._out_edges_actions = out_edges_actions
+        checked_wrt_to_actions = self.full_tr_list_actions()
+        for out_edge in self._out_edges_actions:
+            assert out_edge.get_action_name() in checked_wrt_to_actions
+
+    def full_tr_list_actions(self):
+        # excluding the action representing the disjunction of all actions
+        return filter(lambda action_name: action_name != 'ext', im.module.public_actions)
 
     def check_satisfaction(self, summaries_by_pred):
-        out_edges_disjunction_action = ivy_actions.ChoiceAction(*[im.module.actions[action_name] for action_name in self._out_edges_actions])
+        logging.debug("Check edge covering: all exported %s, is covered by %s", self.full_tr_list_actions(), self._out_edges_actions)
 
-        # TODO: improve readability here..
-        vc = ivy_transrel.tr_implication_verification_condition(summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses(),
-                                                                action_update(im.module.actions['ext']),
-                                                                action_update(out_edges_disjunction_action),
-                                                                get_domain())
-        cex = ivy_solver.get_model_clauses(vc)
-        if cex is None:
-            return None
+        for action_check_covered in self.full_tr_list_actions():
+            matching_edges = filter(lambda edge: edge.get_action_name() == action_check_covered, self._out_edges_actions)
+            accumulated_pre = ivy_logic_utils.or_clauses(*(edge.get_precondition() for edge in matching_edges))
 
-        return ivy_infer.PdrCexModel(cex, vc, project_pre=True)
+            # check: I_s /\ TR[action] => \/ accumulated_pre
+            (_, tr_action, _) = action_update(im.module.actions[action_check_covered])
+            vc = ClausesClauses([summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses(),
+                                 tr_action,
+                                 ivy_logic_utils.dual_clauses(accumulated_pre)])
+
+            cex = vc.get_model()
+            if cex is None:
+                continue
+
+            logging.debug("Check covered failed: %s doesn't cover action %s", accumulated_pre, action_check_covered)
+
+            print "CHECK Check action %s wrt %s, starting in %s" % (action_check_covered, accumulated_pre, summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses())
+            print "MODEL", ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True).diagrarm_abstraction()
+            return ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True)
+
+        return None
+
 
 class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
     def __init__(self, lhs_pred, edge_action_name, rhs_pred):
@@ -299,7 +265,7 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
 
         logger.debug("Checking edge (%s, %s, %s): %s in prestate guarantees %s in poststate?",
                      self._lhs_pred, self._edge_action_name, self._rhs_pred,
-                     prestate_summary, proof_obligation)
+                     prestate_summary.to_single_clauses(), proof_obligation)
 
         countertransition = check_action_transition(prestate_summary,
                                                     self._edge_action_name,
@@ -340,14 +306,14 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
 def out_edge_covering_tr_constraints(states, edges):
     constraints = []
     for state in states:
-        out_actions = [action for (s1, _, action) in edges if s1 == state]
-        constraints.append(OutEdgesConveringTrClause(state, out_actions))
+        out_actions = [AutomatonEdge(action) for (s1, _, action) in edges if s1 == state]
+        constraints.append(OutEdgesCoveringTrClause(state, out_actions))
 
     return constraints
 
 def infer_safe_summaries():
     states = ["tag_server", "tag_grant", "tag_client", "tag_unlock"]
-    init = [("tag_grant", global_initial_state())]
+    init = [("tag_server", global_initial_state())]
     edges = [
         ("tag_server", "tag_grant", 'ext:recv_lock'),
         ("tag_grant", "tag_client", 'ext:recv_grant'),
