@@ -59,8 +59,11 @@ def global_consecution_clause():
     # relies on the isolate being created with 'ext' action
     return ivy_infer_chc_linear_system.SummaryPostSummaryClause("inv", 'ext', "inv")
 
+def global_safety_clauses_lst():
+    return [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
+
 def global_safety_clause():
-    return ivy_infer_chc_linear_system.SafetyOfStateClause("inv")
+    return ivy_infer_chc_linear_system.SafetyOfStateClause("inv", global_safety_clauses_lst())
 
 
 def check_logical_implication(clauses_lst1, clauses_lst2):

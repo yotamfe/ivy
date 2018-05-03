@@ -97,7 +97,7 @@ class PdrCexModel(object):
         if project_pre:
             self._ignore_symbols = lambda s: s.is_skolem() or ivy_transrel.is_new(s)
 
-    def diagrarm_abstraction(self):
+    def diagram_abstraction(self):
         clauses = self._clauses_of_interest
         logger.debug("clauses for diagram: %s", clauses)
         # TODO: we sometimes use self._bad_model = None, then the we take an arbitrary model of self._clauses_of_interest. It's confusing, eliminate it

@@ -165,7 +165,7 @@ def really_close_epr(fmla):
     universally_closed = ForAll(variables, fmla) if variables else fmla
 
     skolems_fo = [s for s in skolems if not isinstance(s.sort, FunctionSort)]
-    skvars_fo = [Variable('V' + s.name, s.sort) for s in skolems_fo]
+    skvars_fo = [Variable('V' + s.name + ':' + str(s.sort), s.sort) for s in skolems_fo]
     universally_closed_skolem_renamed = rename_ast(universally_closed,dict(zip(skolems_fo,skvars_fo)))
     return Exists(skvars_fo, universally_closed_skolem_renamed) if skvars_fo else universally_closed_skolem_renamed
 
@@ -1189,7 +1189,30 @@ def or_clauses(*args):
         else:
             fixed_vs.append(vs[idx])
             idx += 1
-    return fix_or_annot(res,fixed_vs,orig_args)
+    return fix_or_annot(res, fixed_vs, orig_args)
+
+def or_clauses_avoid_clash2(*args):
+    if not any(isinstance(a,Clauses) for a in args):
+        return Or(*args)
+    args = coerce_args_to_clauses(args)
+    args = [a for a in args if not a.is_false()]
+    if len(args) == 0:
+        res,vs = false_clauses(),[]
+    elif len(args) == 1:
+        res,vs = args[0],[And()]
+    else:
+        assert len(args) == 2
+        arg1, arg2 = args
+
+        subs = distinct_variable_renaming(used_variables_clauses(arg2),
+                                          used_variables_clauses(arg1))
+        arg2 = substitute_clauses(arg2, subs)
+        res = Clauses(fmlas=[Or(And(*arg1.fmlas),
+                                And(*arg2.fmlas))],
+                      defs=arg1.defs + arg2.defs)
+
+    return res
+
 
 
 def ite_clauses(cond,args):

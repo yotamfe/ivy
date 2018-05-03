@@ -180,15 +180,18 @@ def check_action_transition(prestate_clauses, action_name, poststate_obligation)
         #
         # return None
 
+def global_safety_clauses_lst():
+    return [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
+
 class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
-    def __init__(self, pred):
+    def __init__(self, pred, safety_clauses_lst):
         super(SafetyOfStateClause, self).__init__(pred, ivy_logic_utils.true_clauses())
+        self._safey_clauses_lst = safety_clauses_lst
 
     def check_satisfaction(self, summaries_by_pred):
         inv_summary = summaries_by_pred[self._lhs_pred].get_summary()
-        conjectures_to_verify = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
 
-        for conjecture in conjectures_to_verify:
+        for conjecture in self._safey_clauses_lst:
             bad_clauses = ivy_logic_utils.dual_clauses(conjecture)
             inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses])
             bad_inv_model = inv_but_bad_clauses.get_model()
@@ -198,6 +201,7 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
             return ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses())
 
         return None
+
 
 class AutomatonEdge(object):
     def __init__(self, action_name, precondition=ivy_logic_utils.true_clauses()):
@@ -232,22 +236,22 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         for action_check_covered in self.full_tr_list_actions():
             matching_edges = filter(lambda edge: edge.get_action_name() == action_check_covered, self._out_edges_actions)
-            accumulated_pre = ivy_logic_utils.or_clauses(*(edge.get_precondition() for edge in matching_edges))
+            # accumulated_pre = ivy_logic_utils.or_clauses(*(edge.get_precondition() for edge in matching_edges)).epr_closed()
 
             # check: I_s /\ TR[action] => \/ accumulated_pre
             (_, tr_action, _) = action_update(im.module.actions[action_check_covered])
             vc = ClausesClauses([summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses(),
-                                 tr_action,
-                                 ivy_logic_utils.dual_clauses(accumulated_pre)])
+                                 tr_action] +
+                                [ivy_logic_utils.dual_clauses(edge.get_precondition()) for edge in matching_edges])
 
             cex = vc.get_model()
             if cex is None:
                 continue
 
-            logger.debug("Check covered failed: %s doesn't cover action %s", accumulated_pre, action_check_covered)
+            logger.debug("Check covered failed: %s doesn't cover action %s",
+                         [edge.get_precondition() for edge in matching_edges],
+                         action_check_covered)
 
-            print "CHECK Check action %s wrt %s, starting in %s" % (action_check_covered, accumulated_pre, summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses())
-            print "MODEL", ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True).diagrarm_abstraction()
             return ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True)
 
         return None
@@ -306,28 +310,56 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
 def out_edge_covering_tr_constraints(states, edges):
     constraints = []
     for state in states:
-        out_actions = [AutomatonEdge(action) for (s1, _, action) in edges if s1 == state]
+        out_actions = [AutomatonEdge(action, precondition=pre) for (s1, _, action, pre) in edges if s1 == state]
         constraints.append(OutEdgesCoveringTrClause(state, out_actions))
 
     return constraints
 
 def infer_safe_summaries():
-    states = ["tag_server", "tag_grant", "tag_client", "tag_unlock"]
-    init = [("tag_server", global_initial_state())]
-    edges = [
-        ("tag_server", "tag_grant", 'ext:recv_lock'),
-        ("tag_grant", "tag_client", 'ext:recv_grant'),
-        ("tag_client", "tag_unlock", 'ext:unlock'),
-        ("tag_unlock", "tag_server", 'ext:recv_unlock'),
-        #
-        ("tag_server", "tag_server", 'ext:lock'),
-        ("tag_grant", "tag_grant", 'ext:lock'),
-        ("tag_client", "tag_client", 'ext:lock'),
-        ("tag_unlock", "tag_unlock", 'ext:lock')
-    ]
+    # # lockserv example
+    # states = ["tag_server", "tag_grant", "tag_client", "tag_unlock"]
+    # init = [("tag_server", global_initial_state())]
+    # edges = [
+    #     ("tag_server", "tag_grant", 'ext:recv_lock', ivy_logic_utils.true_clauses()),
+    #     ("tag_grant", "tag_client", 'ext:recv_grant', ivy_logic_utils.true_clauses()),
+    #     ("tag_client", "tag_unlock", 'ext:unlock', ivy_logic_utils.true_clauses()),
+    #     ("tag_unlock", "tag_server", 'ext:recv_unlock', ivy_logic_utils.true_clauses()),
+    #     #
+    #     ("tag_server", "tag_server", 'ext:lock', ivy_logic_utils.true_clauses()),
+    #     ("tag_grant", "tag_grant", 'ext:lock', ivy_logic_utils.true_clauses()),
+    #     ("tag_client", "tag_client", 'ext:lock', ivy_logic_utils.true_clauses()),
+    #     ("tag_unlock", "tag_unlock", 'ext:lock', ivy_logic_utils.true_clauses())
+    # ]
+    # safety_clauses_lst = global_safety_clauses_lst()
 
-    mid = [SummaryPostSummaryClause(s1, action, s2) for (s1, s2, action) in edges]
-    end_state_safety = [SafetyOfStateClause(s) for s in states]
+    # ring_leader_election
+    states = ["tag_wander", "tag_qn1_trump", "tag_qn2_trump"]
+    init = [("tag_wander", global_initial_state())]
+
+    gotoqn1_str = 'n1 = qn2 & m = idn(qn1) & le(idn(n1), m) & m ~= idn(n1)'
+    gotoqn1 = ivy_logic_utils.to_clauses(gotoqn1_str)
+    gotoqn2_str = 'n1 = qn1 & m = idn(qn2) & le(idn(n1), m) & m ~= idn(n1)'
+    gotoqn2 = ivy_logic_utils.to_clauses(gotoqn2_str)
+    ow = ivy_logic_utils.dual_clauses(ivy_logic_utils.to_clauses('(%s) | (%s)' % (gotoqn1_str, gotoqn2_str)))
+
+
+    edges = [
+        ("tag_wander", "tag_wander", 'ext:send', ivy_logic_utils.true_clauses()),
+        ("tag_wander", "tag_qn1_trump", 'ext:receive', gotoqn1),
+        ("tag_wander", "tag_qn2_trump", 'ext:receive', gotoqn2),
+        ("tag_wander", "tag_wander", 'ext:receive', ow),
+
+
+        ("tag_qn1_trump", "tag_qn1_trump", 'ext:send', ivy_logic_utils.true_clauses()),
+        ("tag_qn1_trump", "tag_qn1_trump", 'ext:receive', ivy_logic_utils.true_clauses()),
+
+        ("tag_qn2_trump", "tag_qn2_trump", 'ext:send', ivy_logic_utils.true_clauses()),
+        ("tag_qn2_trump", "tag_qn2_trump", 'ext:receive', ivy_logic_utils.true_clauses()),
+    ]
+    safety_clauses_lst = [ivy_logic_utils.to_clauses('leader(qn1) & leader(qn2) -> qn1 = qn2')]
+
+    mid = [SummaryPostSummaryClause(s1, action, s2) for (s1, s2, action, _) in edges]
+    end_state_safety = [SafetyOfStateClause(s, safety_clauses_lst) for s in states]
     end_state_cover_tr = out_edge_covering_tr_constraints(states, edges)
     end = end_state_safety + end_state_cover_tr
 

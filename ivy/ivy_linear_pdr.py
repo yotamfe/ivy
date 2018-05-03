@@ -146,7 +146,9 @@ class LinearPdr(ivy_infer.PdrElements):
             if mid_constraint.rhs_pred() != predicate:
                 continue
 
-            bad_model_lhs = mid_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation))
+            logging.debug("Proof obligation: %s", proof_obligation)
+            bad_model_lhs = mid_constraint.check_transformability(summaries_by_symbol,
+                                                                  ivy_logic_utils.dual_clauses(proof_obligation))
             if bad_model_lhs is None:
                 continue
 
@@ -172,8 +174,11 @@ class LinearPdr(ivy_infer.PdrElements):
             if mid_constraint.rhs_pred() != predicate:
                 continue
 
-            generalization_for_clause = mid_constraint.generalize_intransformability(prestate_summaries,
-                                                                                     lemma)
-            lemma_generalization = ivy_logic_utils.or_clauses(lemma_generalization, generalization_for_clause)
+            generalization_for_clause = mid_constraint.generalize_intransformability(prestate_summaries, lemma)
+            # NOTE: taking care with the disjunction to rename implicitly universally quantified variables
+            # to avoid capture between different disjuncts (each is quantified separately).
+            # Inserting the quantifiers explicitly causes problems elsewhere, in ivy_solver.clauses_model_to_clauses
+            lemma_generalization = ivy_logic_utils.or_clauses_avoid_clash2(lemma_generalization,
+                                                                           generalization_for_clause)
 
         return lemma_generalization

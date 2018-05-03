@@ -12,5 +12,6 @@ class UnivGeneralizer(object):
         super(UnivGeneralizer, self).__init__()
 
     def bad_model_to_proof_obligation(self, bad_model):
-        block_model_clauses = ivy_logic_utils.dual_clauses(bad_model.diagrarm_abstraction())
+        block_model_clauses = ivy_logic_utils.dual_clauses(bad_model.diagram_abstraction())
+        logging.debug("block model clauses: %s", block_model_clauses)
         return block_model_clauses
