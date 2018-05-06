@@ -1272,6 +1272,7 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
     h = model_if_none(and_clauses(clauses1,axioms),implied,model)
     ignore = ignore if ignore is not None else lambda x: False
     res = model_facts(h,(lambda x: False),clauses1,upclose=True) # why not pass axioms?
+    # res = model_facts(h, ignore, clauses1, upclose=True)  # why not pass axioms?
 #    print "clauses_model_to_diagram res = {}".format(res)
     # find representative elements
     # find representatives of universe elements
@@ -1295,9 +1296,19 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
     # replace universe elements with their reps
 #    print "clauses_model_to_diagram res = {}".format(res)
     res = substitute_constants_clauses(res,reps)
+
     # filter defined skolems
    # this caused a bug in the leader example. the generated diagram did not satisfy clauses1
-    res.fmlas = [f for f in res.fmlas if not any((x.is_skolem() and x in clauses1.defidx) for x in used_symbols_ast(f))]
+    # TODO: removed this filter because I think it does a bug in the unsat core below
+    # res.fmlas = [f for f in res.fmlas if not any((x.is_skolem() and x in clauses1.defidx) for x in used_symbols_ast(f))]
+    # for f in res.fmlas:
+    #     for x in used_symbols_ast(f):
+    #         if x.is_skolem() and x in clauses1.defidx:
+    #             print "SHALL BE REMOVED:", x, isinstance(x.sort, lg.FunctionSort), f
+    # res.fmlas = [f for f in res.fmlas if not any(((x.is_skolem() and not isinstance(x.sort, lg.FunctionSort)) and x in clauses1.defidx) for x in used_symbols_ast(f))]
+    # for f in res.fmlas:
+    #     print "FORMULA", f
+
 #    print "clauses_model_to_diagram res = {}".format(res)
 #     uc = Clauses([[ivy_logic._eq_lit(ivy_logic.Variable('X',c.get_sort()),reps[c.rep])
 #                    for c in h.sort_universe(s)] for s in h.sorts()])
@@ -1311,9 +1322,10 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
             # remove if possible the =constant predicates
             return ivy_logic.is_eq(fmla) and ivy_logic.is_constant(fmla.args[0])
 
-        # use clauses1_to_open_formula() to also definitions with quantified variables
+        # use clauses1_to_open_formula() to handle definitions with quantified variables
         clauses1_weak = bound_quantifiers_clauses(h,Clauses(fmlas=[clauses1.to_open_formula()]),reps)
         res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
+        assert res is not None
 #    print "clauses_model_to_diagram res = {}".format(res)
 
 #    print "foo = {}".format(unsat_core(and_clauses(uc,axioms),true_clauses(),clauses1))
@@ -1321,8 +1333,10 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
     # filter out non-rep skolems
     repset = set(c.rep for e,c in reps.iteritems())
 #    print "clauses_model_to_diagram repset = {}".format(repset)
-    ign = lambda x,ignore=ignore: (ignore(x) and not x in repset)
+#     ign = lambda x,ignore=ignore: (ignore(x) and not x in repset)
+    ign = lambda x, ignore=ignore: ((ignore(x) or x.is_skolem()) and not x in repset)
     res = Clauses([cl for cl in res.fmlas if not any(ign(c) for c in used_symbols_ast(cl))])
+    res = filter_redundant_facts(res, axioms)
 #    print "clauses_model_to_diagram res = {}".format(res)
     return res
 
