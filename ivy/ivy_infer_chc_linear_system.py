@@ -337,10 +337,12 @@ def infer_safe_summaries():
     init = [("tag_wander", global_initial_state())]
 
     gotoqn1_str = 'n1 = qn2 & m = idn(qn1) & le(idn(n1), m) & m ~= idn(n1)'
+    # gotoqn1_str = 'n1 = qn2'
     gotoqn1 = ivy_logic_utils.to_clauses(gotoqn1_str)
     gotoqn2_str = 'n1 = qn1 & m = idn(qn2) & le(idn(n1), m) & m ~= idn(n1)'
     gotoqn2 = ivy_logic_utils.to_clauses(gotoqn2_str)
-    ow = ivy_logic_utils.dual_clauses(ivy_logic_utils.to_clauses('(%s) | (%s)' % (gotoqn1_str, gotoqn2_str)))
+    # ow = ivy_logic_utils.dual_clauses(ivy_logic_utils.to_clauses('(%s) | (%s)' % (gotoqn1_str, gotoqn2_str)))
+    ow = ivy_logic_utils.to_clauses('(idn(qn1) = m -> ring.btw(qn1, n1, qn2)) & (idn(qn2) = m -> ring.btw(qn2, n1, qn1))')
 
 
     edges = [
@@ -368,6 +370,11 @@ def infer_safe_summaries():
     is_safe, frame_or_cex = ivy_infer.pdr(pdr_elements_global_invariant)
     if not is_safe:
         print "Possibly not safe! - bug or no universal invariant"
+        cex = frame_or_cex
+        while cex:
+            logger.info("%s" % cex.predicate)
+            assert len(cex.children) == 1
+            cex = cex.children[0]
     else:
         safe_frame = frame_or_cex
         for state, summary in safe_frame.iteritems():
@@ -402,7 +409,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
 
     import signal
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    # signal.signal(signal.SIGINT, signal.SIG_DFL)
     import ivy_alpha
     ivy_alpha.test_bottom = False  # this prevents a useless SAT check
     import tk_ui as ui
