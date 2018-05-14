@@ -23,6 +23,7 @@ import ivy_infer_universal
 import ivy_transrel
 import ivy_actions
 import ivy_solver
+import ivy_logic
 
 logger = logging.getLogger(__file__)
 
@@ -315,7 +316,15 @@ def out_edge_covering_tr_constraints(states, edges):
 
     return constraints
 
-def parse_json_automaton(filename):
+def load_quantifiers(quantifiers_dict):
+    for name, sort in quantifiers_dict.iteritems():
+        ivy_logic.add_symbol(name, im.module.sig.sorts[sort])
+
+def load_axiom(axiom_str):
+    import ivy_ast
+    im.module.labeled_axioms.append(ivy_ast.LabeledFormula('use-defined', ivy_logic_utils.to_formula(axiom_str)))
+
+def load_json_automaton(filename):
     import json
     with open(filename, 'rt') as f:
         file_contents = f.read()
@@ -323,6 +332,13 @@ def parse_json_automaton(filename):
 
     states = [s['name'] for s in json_data['states']]
     init = [(json_data['init'], global_initial_state())]
+
+    if 'quantifiers' in json_data:
+        load_quantifiers(json_data['quantifiers'])
+
+    if 'axiom' in json_data:
+        load_axiom(json_data['axiom'])
+
     edges = []
     for s in json_data['states']:
         for e in s['edges']:
@@ -342,7 +358,7 @@ def parse_json_automaton(filename):
     return states, init, edges, safety
 
 def infer_safe_summaries(automaton_filename):
-    states, init, edges, safety_clauses_lst = parse_json_automaton(automaton_filename)
+    states, init, edges, safety_clauses_lst = load_json_automaton(automaton_filename)
     logger.debug("States: %s", states)
     logger.debug("Init: %s", init)
     logger.debug("Edges: %s", edges)
