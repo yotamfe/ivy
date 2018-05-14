@@ -76,14 +76,14 @@ class Predicate(object):
     def rhs_assigned(self, clauses):
         return ivy_transrel.new(clauses)
 
-# # TODO: eliminate duplication
-# def ivy_all_axioms():
-#     import ivy_module as im
-#     axioms_lst = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms]
-#     if axioms_lst:
-#         return ivy_logic_utils.and_clauses(*axioms_lst)
-#     # and_clauses on an empty list causes problems, later fails in clauses_using_symbols
-#     return ivy_logic_utils.true_clauses()
+# TODO: eliminate duplication
+def ivy_all_axioms():
+    import ivy_module as im
+    axioms_lst = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms]
+    if axioms_lst:
+        return ivy_logic_utils.and_clauses(*axioms_lst)
+    # and_clauses on an empty list causes problems, later fails in clauses_using_symbols
+    return ivy_logic_utils.true_clauses()
 
 
 # TODO: currently just a wrapper to be used with diagram calls, refactor to extract the diagram from a model
@@ -102,7 +102,10 @@ class PdrCexModel(object):
         logger.debug("clauses for diagram: %s", clauses)
         # TODO: we sometimes use self._bad_model = None, then the we take an arbitrary model of self._clauses_of_interest. It's confusing, eliminate it
         # TODO: make sense of self._ignore vs self._clauses_of_interest
-        diagram = ivy_solver.clauses_model_to_diagram(clauses, model=self._bad_model, ignore=self._ignore_symbols)
+        axioms = ivy_all_axioms()
+        # axioms = None
+        diagram = ivy_solver.clauses_model_to_diagram(clauses, model=self._bad_model,
+                                                      ignore=self._ignore_symbols, axioms=axioms)
         logger.debug("calculated diagram of bad state: %s", diagram)
         return diagram
     

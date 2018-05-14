@@ -1314,7 +1314,7 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
 #                    for c in h.sort_universe(s)] for s in h.sorts()])
 #    print "clauses_model_to_diagram uc = {}".format(uc)
 
-    res = filter_redundant_facts(res,axioms)
+    # res = filter_redundant_facts(res,axioms)
 
     uc = true_clauses()
     if weaken:
