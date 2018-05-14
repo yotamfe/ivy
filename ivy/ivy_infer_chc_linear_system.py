@@ -315,50 +315,38 @@ def out_edge_covering_tr_constraints(states, edges):
 
     return constraints
 
-def infer_safe_summaries():
-    # # lockserv example
-    # states = ["tag_server", "tag_grant", "tag_client", "tag_unlock"]
-    # init = [("tag_server", global_initial_state())]
-    # edges = [
-    #     ("tag_server", "tag_grant", 'ext:recv_lock', ivy_logic_utils.true_clauses()),
-    #     ("tag_grant", "tag_client", 'ext:recv_grant', ivy_logic_utils.true_clauses()),
-    #     ("tag_client", "tag_unlock", 'ext:unlock', ivy_logic_utils.true_clauses()),
-    #     ("tag_unlock", "tag_server", 'ext:recv_unlock', ivy_logic_utils.true_clauses()),
-    #     #
-    #     ("tag_server", "tag_server", 'ext:lock', ivy_logic_utils.true_clauses()),
-    #     ("tag_grant", "tag_grant", 'ext:lock', ivy_logic_utils.true_clauses()),
-    #     ("tag_client", "tag_client", 'ext:lock', ivy_logic_utils.true_clauses()),
-    #     ("tag_unlock", "tag_unlock", 'ext:lock', ivy_logic_utils.true_clauses())
-    # ]
-    # safety_clauses_lst = global_safety_clauses_lst()
+def parse_json_automaton(filename):
+    import json
+    with open(filename, 'rt') as f:
+        file_contents = f.read()
+    json_data = json.loads(file_contents)
 
-    # ring_leader_election
-    states = ["tag_wander", "tag_qn1_trump", "tag_qn2_trump"]
-    init = [("tag_wander", global_initial_state())]
+    states = [s['name'] for s in json_data['states']]
+    init = [(json_data['init'], global_initial_state())]
+    edges = []
+    for s in json_data['states']:
+        for e in s['edges']:
+            target = e['target']
+            action = e['action']
+            if 'precondition' in e:
+                precondition = ivy_logic_utils.to_clauses(e['precondition'])
+            else:
+                precondition = ivy_logic_utils.true_clauses()
+            edges.append((s['name'], target, action, precondition))
+    safety_str = json_data['safety']
+    if not safety_str:
+        safety = global_safety_clauses_lst()
+    else:
+        safety = [ivy_logic_utils.to_clauses(safety_str)]
 
-    gotoqn1_str = 'n1 = qn2 & m = idn(qn1) & le(idn(n1), m) & m ~= idn(n1)'
-    # gotoqn1_str = 'n1 = qn2'
-    gotoqn1 = ivy_logic_utils.to_clauses(gotoqn1_str)
-    gotoqn2_str = 'n1 = qn1 & m = idn(qn2) & le(idn(n1), m) & m ~= idn(n1)'
-    gotoqn2 = ivy_logic_utils.to_clauses(gotoqn2_str)
-    # ow = ivy_logic_utils.dual_clauses(ivy_logic_utils.to_clauses('(%s) | (%s)' % (gotoqn1_str, gotoqn2_str)))
-    ow = ivy_logic_utils.to_clauses('(idn(qn1) = m -> ring.btw(qn1, n1, qn2)) & (idn(qn2) = m -> ring.btw(qn2, n1, qn1))')
+    return states, init, edges, safety
 
-
-    edges = [
-        ("tag_wander", "tag_wander", 'ext:send', ivy_logic_utils.true_clauses()),
-        ("tag_wander", "tag_qn1_trump", 'ext:receive', gotoqn1),
-        ("tag_wander", "tag_qn2_trump", 'ext:receive', gotoqn2),
-        ("tag_wander", "tag_wander", 'ext:receive', ow),
-
-
-        ("tag_qn1_trump", "tag_qn1_trump", 'ext:send', ivy_logic_utils.true_clauses()),
-        ("tag_qn1_trump", "tag_qn1_trump", 'ext:receive', ivy_logic_utils.true_clauses()),
-
-        ("tag_qn2_trump", "tag_qn2_trump", 'ext:send', ivy_logic_utils.true_clauses()),
-        ("tag_qn2_trump", "tag_qn2_trump", 'ext:receive', ivy_logic_utils.true_clauses()),
-    ]
-    safety_clauses_lst = [ivy_logic_utils.to_clauses('leader(qn1) & leader(qn2) -> qn1 = qn2')]
+def infer_safe_summaries(automaton_filename):
+    states, init, edges, safety_clauses_lst = parse_json_automaton(automaton_filename)
+    logger.debug("States: %s", states)
+    logger.debug("Init: %s", init)
+    logger.debug("Edges: %s", edges)
+    logger.debug("Safety: %s", safety_clauses_lst)
 
     mid = [SummaryPostSummaryClause(s1, action, s2) for (s1, s2, action, _) in edges]
     end_state_safety = [SafetyOfStateClause(s, safety_clauses_lst) for s in states]
@@ -416,7 +404,7 @@ def main():
     iu.set_parameters({'mode': 'induction'})
 
     ivy_init.read_params()
-    if len(sys.argv) != 2 or not sys.argv[1].endswith('ivy'):
+    if len(sys.argv) != 3 or not sys.argv[1].endswith('ivy'):
         usage()
     with im.Module():
         with utl.ErrorPrinter():
@@ -428,7 +416,7 @@ def main():
             isolate = isolates[0]
             with im.module.copy():
                 ivy_isolate.create_isolate(isolate, ext='ext')
-                infer_safe_summaries()
+                infer_safe_summaries(sys.argv[2])
 
     print "OK"
 
