@@ -24,6 +24,7 @@ import ivy_transrel
 import ivy_actions
 import ivy_solver
 import ivy_logic
+import json
 
 logger = logging.getLogger(__file__)
 
@@ -324,52 +325,67 @@ def load_axiom(axiom_str):
     import ivy_ast
     im.module.labeled_axioms.append(ivy_ast.LabeledFormula('use-defined', ivy_logic_utils.to_formula(axiom_str)))
 
+class AutomatonFileRepresentation(object):
+    def __init__(self, filename):
+        with open(filename, 'rt') as f:
+            file_contents = f.read()
+        self.json_data = json.loads(file_contents)
+
+        self.states = [s['name'] for s in self.json_data['states']]
+        self.init = [(self.json_data['init'], global_initial_state())]
+
+        if 'quantifiers' in self.json_data:
+            load_quantifiers(self.json_data['quantifiers'])
+
+        if 'axiom' in self.json_data:
+            load_axiom(self.json_data['axiom'])
+
+        self.edges = []
+        for s in self.json_data['states']:
+            for e in s['edges']:
+                target = e['target']
+                action = e['action']
+                if 'precondition' in e:
+                    self.precondition = ivy_logic_utils.to_clauses(e['precondition'])
+                else:
+                    self.precondition = ivy_logic_utils.true_clauses()
+                self.edges.append((s['name'], target, action, self.precondition))
+        safety_str = self.json_data['safety']
+        if not safety_str:
+            self.safety_clauses_lst = global_safety_clauses_lst()
+        else:
+            self.safety_clauses_lst = [ivy_logic_utils.to_clauses(safety_str)]
+
+    def dump_with_state_characterization(self, outfilename, characterization_per_state):
+        new_data = self.json_data.copy()
+        for state_data in new_data['states']:
+            state_name = state_data['name']
+            characterization = characterization_per_state[state_name]
+            state_data['characterization'] = str(characterization)
+
+        with open(outfilename, 'wt') as outfile:
+            json.dump(new_data, outfile)
+
+
 def load_json_automaton(filename):
-    import json
-    with open(filename, 'rt') as f:
-        file_contents = f.read()
-    json_data = json.loads(file_contents)
+    return AutomatonFileRepresentation(filename)
 
-    states = [s['name'] for s in json_data['states']]
-    init = [(json_data['init'], global_initial_state())]
+def infer_safe_summaries(automaton_filename, output_filename):
+    automaton = load_json_automaton(automaton_filename)
+    logger.debug("States: %s", automaton.states)
+    logger.debug("Init: %s", automaton.init)
+    logger.debug("Edges: %s", automaton.edges)
+    logger.debug("Safety: %s", automaton.safety_clauses_lst)
 
-    if 'quantifiers' in json_data:
-        load_quantifiers(json_data['quantifiers'])
+    automaton.dump_with_state_characterization("outdump.json",
+                                               {s: [ivy_logic_utils.true_clauses()] for s in automaton.states})
 
-    if 'axiom' in json_data:
-        load_axiom(json_data['axiom'])
-
-    edges = []
-    for s in json_data['states']:
-        for e in s['edges']:
-            target = e['target']
-            action = e['action']
-            if 'precondition' in e:
-                precondition = ivy_logic_utils.to_clauses(e['precondition'])
-            else:
-                precondition = ivy_logic_utils.true_clauses()
-            edges.append((s['name'], target, action, precondition))
-    safety_str = json_data['safety']
-    if not safety_str:
-        safety = global_safety_clauses_lst()
-    else:
-        safety = [ivy_logic_utils.to_clauses(safety_str)]
-
-    return states, init, edges, safety
-
-def infer_safe_summaries(automaton_filename):
-    states, init, edges, safety_clauses_lst = load_json_automaton(automaton_filename)
-    logger.debug("States: %s", states)
-    logger.debug("Init: %s", init)
-    logger.debug("Edges: %s", edges)
-    logger.debug("Safety: %s", safety_clauses_lst)
-
-    mid = [SummaryPostSummaryClause(s1, action, s2) for (s1, s2, action, _) in edges]
-    end_state_safety = [SafetyOfStateClause(s, safety_clauses_lst) for s in states]
-    end_state_cover_tr = out_edge_covering_tr_constraints(states, edges)
+    mid = [SummaryPostSummaryClause(s1, action, s2) for (s1, s2, action, _) in automaton.edges]
+    end_state_safety = [SafetyOfStateClause(s, automaton.safety_clauses_lst) for s in automaton.states]
+    end_state_cover_tr = out_edge_covering_tr_constraints(automaton.states, automaton.edges)
     end = end_state_safety + end_state_cover_tr
 
-    pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(states, init, mid, end,
+    pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(automaton.states, automaton.init, mid, end,
                                                              ivy_infer_universal.UnivGeneralizer())
     is_safe, frame_or_cex = ivy_infer.pdr(pdr_elements_global_invariant)
     if not is_safe:
@@ -403,10 +419,30 @@ def infer_safe_summaries(automaton_filename):
         #                                        lambda candidate_lst, omitted: check_inductive_invariant(candidate_lst))
         # print "Invariant reduced:", invariant_reduced
 
+        if output_filename:
+            automaton.dump_with_state_characterization(output_filename, {state: summary.get_summary() for
+                                                                         (state, summary) in safe_frame.iteritems()})
 
-def usage():
-    print "usage: \n  {} file.ivy".format(sys.argv[0])
-    sys.exit(1)
+def infer_with_automaton():
+    if len(sys.argv) not in [3, 4] or not sys.argv[1].endswith('ivy'):
+        print "usage: \n  {} file.ivy automaton_in.json [automaton_out.json]".format(sys.argv[0])
+        sys.exit(1)
+
+    with im.Module():
+        with utl.ErrorPrinter():
+            ivy_init.source_file(sys.argv[1], ivy_init.open_read(sys.argv[1]), create_isolate=False)
+
+            # inspired by ivy_check.check_module()
+            isolates = sorted(list(im.module.isolates))
+            assert len(isolates) == 1
+            isolate = isolates[0]
+            with im.module.copy():
+                ivy_isolate.create_isolate(isolate, ext='ext')
+
+                outfilename = None
+                if len(sys.argv) >= 4:
+                    outfilename = sys.argv[3]
+                infer_safe_summaries(sys.argv[2], outfilename)
 
 
 def main():
@@ -420,19 +456,11 @@ def main():
     iu.set_parameters({'mode': 'induction'})
 
     ivy_init.read_params()
-    if len(sys.argv) != 3 or not sys.argv[1].endswith('ivy'):
-        usage()
-    with im.Module():
-        with utl.ErrorPrinter():
-            ivy_init.source_file(sys.argv[1], ivy_init.open_read(sys.argv[1]), create_isolate=False)
+    if iu.registry.get('op', None) is 'check':
+        pass
 
-            # inspired by ivy_check.check_module()
-            isolates = sorted(list(im.module.isolates))
-            assert len(isolates) == 1
-            isolate = isolates[0]
-            with im.module.copy():
-                ivy_isolate.create_isolate(isolate, ext='ext')
-                infer_safe_summaries(sys.argv[2])
+    infer_with_automaton()
+
 
     print "OK"
 
