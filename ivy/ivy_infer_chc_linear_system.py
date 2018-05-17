@@ -361,30 +361,56 @@ class AutomatonFileRepresentation(object):
         for state_data in new_data['states']:
             state_name = state_data['name']
             characterization = characterization_per_state[state_name]
-            state_data['characterization'] = str(characterization)
+            state_data['characterization'] = [str(c) for c in characterization]
 
         with open(outfilename, 'wt') as outfile:
             json.dump(new_data, outfile)
+
+    def _str_back_to_clauses(self, s):
+        import re
+        # eliminate unicode, raises parsing errors
+        s = s.encode('ascii')
+        # clauses generate equality with false & true but the parser doesn't accept them
+        s = re.sub('(.+) = true', '\g<1>', s)
+        s = re.sub('(.+) = false', '~\g<1>', s)
+        s = re.sub('(.+) ~= true', '~\g<1>', s)
+        s = re.sub('(.+) ~= false', '\g<1>', s)
+        return s
+
+    def characterization_by_state(self):
+        res = {}
+        for s in self.json_data['states']:
+            name = s['name']
+            characterization = s.get('characterization', ['true'])
+            characterization_clauses_lst = [ivy_logic_utils.to_clauses(self._str_back_to_clauses(cf))
+                                            for cf in characterization]
+            res[name] = characterization_clauses_lst
+
+        return res
 
 
 def load_json_automaton(filename):
     return AutomatonFileRepresentation(filename)
 
-def infer_safe_summaries(automaton_filename, output_filename):
+def infer_safe_summaries(automaton_filename, output_filename=None, check_only=True):
     automaton = load_json_automaton(automaton_filename)
     logger.debug("States: %s", automaton.states)
     logger.debug("Init: %s", automaton.init)
     logger.debug("Edges: %s", automaton.edges)
     logger.debug("Safety: %s", automaton.safety_clauses_lst)
 
-    automaton.dump_with_state_characterization("outdump.json",
-                                               {s: [ivy_logic_utils.true_clauses()] for s in automaton.states})
-
     mid = [SummaryPostSummaryClause(s1, action, s2) for (s1, s2, action, _) in automaton.edges]
     end_state_safety = [SafetyOfStateClause(s, automaton.safety_clauses_lst) for s in automaton.states]
     end_state_cover_tr = out_edge_covering_tr_constraints(automaton.states, automaton.edges)
     end = end_state_safety + end_state_cover_tr
 
+    if check_only:
+        return check_automaton(automaton, end, mid, output_filename)
+
+    infer_automaton(automaton, end, mid, output_filename)
+
+
+def infer_automaton(automaton, end, mid, output_filename):
     pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(automaton.states, automaton.init, mid, end,
                                                              ivy_infer_universal.UnivGeneralizer())
     is_safe, frame_or_cex = ivy_infer.pdr(pdr_elements_global_invariant)
@@ -420,8 +446,44 @@ def infer_safe_summaries(automaton_filename, output_filename):
         # print "Invariant reduced:", invariant_reduced
 
         if output_filename:
-            automaton.dump_with_state_characterization(output_filename, {state: summary.get_summary() for
-                                                                         (state, summary) in safe_frame.iteritems()})
+            automaton.dump_with_state_characterization(output_filename, {state: summary.get_summary().get_conjuncts_clauses_list()
+                                                                         for (state, summary) in safe_frame.iteritems()})
+
+def check_automaton(automaton, end, mid, output_filename):
+    is_inductive = True
+    summaries_by_pred = {state: ivy_infer.PredicateSummary(state, characterization_clauses_lst)
+                         for (state, characterization_clauses_lst) in automaton.characterization_by_state().iteritems()}
+
+    init_check_lst = {init_state: (ivy_solver.clauses_imply_list(init_cond, summaries_by_pred[init_state].get_summary().get_conjuncts_clauses_list()))
+                      for (init_state, init_cond) in automaton.init}
+
+    safety_checks = {endc: endc.check_satisfaction(summaries_by_pred) for endc in end}
+
+    mid_checks = {midc: {lemma: midc.check_transformability(summaries_by_pred, ivy_logic_utils.dual_clauses(lemma))
+                         for lemma in summaries_by_pred[midc.rhs_pred()].get_summary().get_conjuncts_clauses_list()}
+                  for midc in mid}
+
+    for init_state, res_lst in init_check_lst.iteritems():
+        if not all(res_lst):
+            logger.info("Init check failed: %s ", init_state)
+            is_inductive = False
+
+    for safec, res in safety_checks.iteritems():
+        if res is not None:
+            logger.info("Safey failed: %s", str(safec))
+            is_inductive = False
+
+    for edgec, res_lst in mid_checks.iteritems():
+        for lemma, res in res_lst.iteritems():
+            if res is not None:
+                logger.info("Edge check failed: %s not implied in constraint %s", lemma, str(edgec))
+                is_inductive = False
+
+    if is_inductive:
+        logger.info("Automaton is inductive!")
+    else:
+        logger.info("Non inductive automaton!")
+
 
 def infer_with_automaton():
     if len(sys.argv) not in [3, 4] or not sys.argv[1].endswith('ivy'):
@@ -453,14 +515,31 @@ def main():
     import ivy_alpha
     ivy_alpha.test_bottom = False  # this prevents a useless SAT check
     import tk_ui as ui
+    op_param = iu.Parameter('op', 'infer')
     iu.set_parameters({'mode': 'induction'})
 
     ivy_init.read_params()
-    if iu.registry.get('op', None) is 'check':
-        pass
+    if len(sys.argv) not in [3, 4] or not sys.argv[1].endswith('ivy'):
+        print "usage: \n  {} file.ivy automaton_in.json [automaton_out.json]".format(sys.argv[0])
+        sys.exit(1)
 
-    infer_with_automaton()
+    with im.Module():
+        with utl.ErrorPrinter():
+            ivy_init.source_file(sys.argv[1], ivy_init.open_read(sys.argv[1]), create_isolate=False)
 
+            # inspired by ivy_check.check_module()
+            isolates = sorted(list(im.module.isolates))
+            assert len(isolates) == 1
+            isolate = isolates[0]
+            with im.module.copy():
+                ivy_isolate.create_isolate(isolate, ext='ext')
+
+                outfilename = None
+                if len(sys.argv) >= 4:
+                    outfilename = sys.argv[3]
+
+                check_only = (op_param.get() == 'check')
+                infer_safe_summaries(sys.argv[2], outfilename, check_only=check_only)
 
     print "OK"
 
