@@ -354,7 +354,7 @@ class AutomatonFileRepresentation(object):
         if not safety_str:
             self.safety_clauses_lst = global_safety_clauses_lst()
         else:
-            self.safety_clauses_lst = [ivy_logic_utils.to_clauses(safety_str)]
+            self.safety_clauses_lst = [ivy_logic_utils.to_clauses(self._str_back_to_clauses(safety_str))]
 
     def dump_with_state_characterization(self, outfilename, characterization_per_state):
         new_data = self.json_data.copy()
@@ -418,8 +418,10 @@ def infer_automaton(automaton, end, mid, output_filename):
         print "Possibly not safe! - bug or no universal invariant"
         cex = frame_or_cex
         while cex:
-            logger.info("%s" % cex.predicate)
-            assert len(cex.children) == 1
+            logger.info("Cex node: %s" % cex.predicate)
+            assert len(cex.children) <= 1
+            if not cex.children:
+                break
             cex = cex.children[0]
     else:
         safe_frame = frame_or_cex
