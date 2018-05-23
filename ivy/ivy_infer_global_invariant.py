@@ -57,7 +57,7 @@ def ivy_all_axioms():
 
 def global_consecution_clause():
     # relies on the isolate being created with 'ext' action
-    return ivy_infer_chc_linear_system.SummaryPostSummaryClause("inv", 'ext', "inv")
+    return ivy_infer_chc_linear_system.SummaryPostSummaryClause("inv", ('ext', ivy_logic_utils.true_clauses()), "inv")
 
 def global_safety_clauses_lst():
     return [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_conjs]
@@ -132,7 +132,9 @@ def infer_safe_summaries():
     mid = [global_consecution_clause()]
     end = [global_safety_clause()]
 
-    pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(["inv"], init, mid, end, ivy_infer_universal.UnivGeneralizer())
+    pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(["inv"], init, mid, end,
+                                                             ivy_infer_universal.UnivGeneralizer(),
+                                                             ivy_all_axioms())
     is_safe, frame_or_cex = ivy_infer.pdr(pdr_elements_global_invariant)
     if not is_safe:
         print "Possibly not safe! - bug or no universal invariant"

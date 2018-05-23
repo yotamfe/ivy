@@ -86,14 +86,17 @@ class LinearMiddleConstraint(LinearTransformabilityHornClause):
     def generalize_intransformability(self, summaries_by_pred, lemma):
         pass
 
+
 class LinearPdr(ivy_infer.PdrElements):
-    def __init__(self, preds, init_chc_lst, mid_chc_lst, end_chc_lst, generalizer):
+    def __init__(self, preds, init_chc_lst, mid_chc_lst, end_chc_lst, generalizer, axioms):
         super(LinearPdr, self).__init__(generalizer)
         self._preds = preds
 
         self._init_chc = init_chc_lst
         self._mid_chc = mid_chc_lst
         self._end_chc = end_chc_lst
+
+        self._axioms = axioms
 
     def initial_summary(self):
         initial_summary = {pred: ivy_logic_utils.false_clauses() for pred in self._preds}

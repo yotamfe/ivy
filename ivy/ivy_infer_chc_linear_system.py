@@ -91,7 +91,7 @@ def check_action_transition(prestate_clauses, action_name, poststate_obligation)
         ag = ivy_art.AnalysisGraph()
 
         pre = State()
-        pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
+        pre.clauses = and_clauses(*prestate_clauses)
         pre.clauses = and_clauses(pre.clauses, ivy_all_axioms())
 
         with EvalContext(check=False):
@@ -260,9 +260,9 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
 
 
 class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
-    def __init__(self, lhs_pred, edge_action_name, rhs_pred):
-        super(SummaryPostSummaryClause, self).__init__(lhs_pred, edge_action_name, rhs_pred)
-        self._edge_action_name = edge_action_name
+    def __init__(self, lhs_pred, edge_action, rhs_pred):
+        super(SummaryPostSummaryClause, self).__init__(lhs_pred, edge_action, rhs_pred)
+        self._edge_action = edge_action
 
     def check_transformability(self, summaries_by_pred, bad_clauses):
         prestate_summary = summaries_by_pred[self._lhs_pred].get_summary()
@@ -270,11 +270,12 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         proof_obligation = ivy_logic_utils.dual_clauses(bad_clauses)
 
         logger.debug("Checking edge (%s, %s, %s): %s in prestate guarantees %s in poststate?",
-                     self._lhs_pred, self._edge_action_name, self._rhs_pred,
+                     self._lhs_pred, self._edge_action, self._rhs_pred,
                      prestate_summary.to_single_clauses(), proof_obligation)
 
-        countertransition = check_action_transition(prestate_summary,
-                                                    self._edge_action_name,
+        edge_action_name, edge_action_precond = self._edge_action
+        countertransition = check_action_transition(prestate_summary.get_conjuncts_clauses_list() + [edge_action_precond],
+                                                    edge_action_name,
                                                     ClausesClauses([proof_obligation]))
 
         if countertransition is None:
@@ -289,15 +290,17 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         from ivy_logic_utils import and_clauses
         from ivy_interp import State
 
+        (edge_action_name, precond) = (self._edge_action)
+
         prestate_clauses = prestate_summaries[self._lhs_pred].get_summary()
 
         # relying on isolate context created earlier
         ag = ivy_art.AnalysisGraph()
 
         pre = State()
-        pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list())
+        pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list() + [precond])
 
-        action = im.module.actions[self._edge_action_name]
+        action = im.module.actions[edge_action_name]
 
         post = ivy_logic_utils.dual_clauses(lemma)
 
@@ -399,7 +402,7 @@ def infer_safe_summaries(automaton_filename, output_filename=None, check_only=Tr
     logger.debug("Edges: %s", automaton.edges)
     logger.debug("Safety: %s", automaton.safety_clauses_lst)
 
-    mid = [SummaryPostSummaryClause(s1, action, s2) for (s1, s2, action, _) in automaton.edges]
+    mid = [SummaryPostSummaryClause(s1, (action_name, precond), s2) for (s1, s2, action_name, precond) in automaton.edges]
     end_state_safety = [SafetyOfStateClause(s, automaton.safety_clauses_lst) for s in automaton.states]
     end_state_cover_tr = out_edge_covering_tr_constraints(automaton.states, automaton.edges)
     end = end_state_safety + end_state_cover_tr
@@ -412,7 +415,8 @@ def infer_safe_summaries(automaton_filename, output_filename=None, check_only=Tr
 
 def infer_automaton(automaton, end, mid, output_filename):
     pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(automaton.states, automaton.init, mid, end,
-                                                             ivy_infer_universal.UnivGeneralizer())
+                                                             ivy_infer_universal.UnivGeneralizer(),
+                                                             ivy_all_axioms())
     is_safe, frame_or_cex = ivy_infer.pdr(pdr_elements_global_invariant)
     if not is_safe:
         print "Possibly not safe! - bug or no universal invariant"
