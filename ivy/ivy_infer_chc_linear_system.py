@@ -204,6 +204,9 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         return None
 
+    def __str__(self):
+        return "Safety: %s => %s" % (self._lhs_pred, self._safey_clauses_lst)
+
 
 class AutomatonEdge(object):
     def __init__(self, action_name, precondition=ivy_logic_utils.true_clauses()):
