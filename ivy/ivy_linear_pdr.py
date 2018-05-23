@@ -38,6 +38,13 @@ def ivy_all_axioms():
     # and_clauses on an empty list causes problems, later fails in clauses_using_symbols
     return ivy_logic_utils.true_clauses()
 
+# TODO: based on ivy_transrel.forward_image_map
+def forward_clauses(clauses, updated):
+    return ivy_transrel.rename_clauses(clauses, dict((x, ivy_transrel.new(x)) for x in updated))
+
+def to_current_clauses(clauses, updated):
+    return ivy_transrel.rename_clauses(clauses, dict((ivy_transrel.new(x), x) for x in updated))
+
 class LinearTransformabilityHornClause(object):
     """
     Transformability clauses = Predicate on lhs.
@@ -86,6 +93,9 @@ class LinearMiddleConstraint(LinearTransformabilityHornClause):
     def generalize_intransformability(self, summaries_by_pred, lemma):
         pass
 
+    @abc.abstractmethod
+    def transformability_update(self, summaries_by_pred, rhs_vocab):
+        pass
 
 class LinearPdr(ivy_infer.PdrElements):
     def __init__(self, preds, init_chc_lst, mid_chc_lst, end_chc_lst, generalizer, axioms):
@@ -170,18 +180,42 @@ class LinearPdr(ivy_infer.PdrElements):
         return False, None
 
     def generalize_intransformability(self, predicate, prestate_summaries, lemma):
-        # TODO: generalizing separately and then combining is potentially less efficient becauase of different local minima of the unsat core
-        lemma_generalization = ivy_logic_utils.false_clauses()
+        transformers = filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc)
+        transformability_clauses = map(lambda midc: midc.transformability_update(prestate_summaries, ivy_transrel.new),
+                                       transformers)
+        all_updated_syms = set.union(*(set(updated_syms) for (updated_syms, _) in transformability_clauses))
+        transformability_clauses_unified = []
+        for (updated_syms, clauses) in transformability_clauses:
+            unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
+                                                      im.module.relations, ivy_transrel.new)
+            clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
+            transformability_clauses_unified.append(clauses)
 
-        for mid_constraint in self._mid_chc:
-            if mid_constraint.rhs_pred() != predicate:
-                continue
+        all_transformability_combined = ivy_logic_utils.or_clauses_avoid_clash(*transformability_clauses_unified)
 
-            generalization_for_clause = mid_constraint.generalize_intransformability(prestate_summaries, lemma)
-            # NOTE: taking care with the disjunction to rename implicitly universally quantified variables
-            # to avoid capture between different disjuncts (each is quantified separately).
-            # Inserting the quantifiers explicitly causes problems elsewhere, in ivy_solver.clauses_model_to_clauses
-            lemma_generalization = ivy_logic_utils.or_clauses_avoid_clash2(lemma_generalization,
-                                                                           generalization_for_clause)
+        rhs = ivy_logic_utils.dual_clauses(lemma)
+        rhs_in_new = forward_clauses(rhs, all_updated_syms)
 
-        return lemma_generalization
+        print "Trans: %s, check lemma: %s" % (all_transformability_combined, rhs_in_new)
+        res = ivy_transrel.interpolant(all_transformability_combined,
+                                       rhs_in_new,
+                                       axioms=self._axioms, interpreted=None)
+        assert res is not None
+        return to_current_clauses(res[1], all_updated_syms)
+
+
+        # # TODO: generalizing separately and then combining is potentially less efficient becauase of different local minima of the unsat core
+        # lemma_generalization = ivy_logic_utils.false_clauses()
+        #
+        # for mid_constraint in self._mid_chc:
+        #     if mid_constraint.rhs_pred() != predicate:
+        #         continue
+        #
+        #     generalization_for_clause = mid_constraint.generalize_intransformability(prestate_summaries, lemma)
+        #     # NOTE: taking care with the disjunction to rename implicitly universally quantified variables
+        #     # to avoid capture between different disjuncts (each is quantified separately).
+        #     # Inserting the quantifiers explicitly causes problems elsewhere, in ivy_solver.clauses_model_to_clauses
+        #     lemma_generalization = ivy_logic_utils.or_clauses_avoid_clash2(lemma_generalization,
+        #                                                                    generalization_for_clause)
+        #
+        # return lemma_generalization

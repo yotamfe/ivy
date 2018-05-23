@@ -311,6 +311,19 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         assert res != None
         return res[1]
 
+    def transformability_update(self, summaries_by_pred, rhs_vocab):
+        assert rhs_vocab == ivy_transrel.new, "Caller expects vocabulary unexpected for the constraint"
+
+        (edge_action_name, edge_precond) = self._edge_action
+
+        action = im.module.actions[edge_action_name]
+        (updated_syms, clauses, _) = action_update(action)
+
+        lhs_clauses_clauses = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
+                                             [clauses] + [edge_precond])
+
+        return (updated_syms, lhs_clauses_clauses.to_single_clauses())
+
 
 def out_edge_covering_tr_constraints(states, edges):
     constraints = []
