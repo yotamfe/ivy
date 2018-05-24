@@ -364,8 +364,8 @@ class AutomatonFileRepresentation(object):
             for e in s['edges']:
                 target = e['target']
                 action = e['action']
-                if 'precondition' in e:
-                    self.precondition = ivy_logic_utils.to_clauses(e['precondition'])
+                if 'precond' in e:
+                    self.precondition = ivy_logic_utils.to_clauses(e['precond'])
                 else:
                     self.precondition = ivy_logic_utils.true_clauses()
                 self.edges.append((s['name'], target, action, self.precondition))
@@ -390,6 +390,7 @@ class AutomatonFileRepresentation(object):
         # eliminate unicode, raises parsing errors
         s = s.encode('ascii')
         # clauses generate equality with false & true but the parser doesn't accept them
+        # FIXME: doesn't work right when there is more than one, changes only the last
         s = re.sub('(.+) = true', '\g<1>', s)
         s = re.sub('(.+) = false', '~\g<1>', s)
         s = re.sub('(.+) ~= true', '~\g<1>', s)
