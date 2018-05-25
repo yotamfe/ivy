@@ -1216,6 +1216,7 @@ def or_clauses_avoid_clash2(*args):
     return res
 
 def avoid_variables_clash(args):
+    # TODO: can just rename every variable to variable+sort instead of actually renaming, no?
     import logging
     logging.debug("Or renaming: %s", args)
     args_renamed = [args[0]]
