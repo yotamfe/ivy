@@ -191,16 +191,21 @@ class LinearPdr(ivy_infer.PdrElements):
             clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
             transformability_clauses_unified.append(clauses)
 
-        all_transformability_combined = ivy_logic_utils.or_clauses_avoid_clash(*transformability_clauses_unified)
+        all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
 
         rhs = ivy_logic_utils.dual_clauses(lemma)
         rhs_in_new = forward_clauses(rhs, all_updated_syms)
 
-        print "Trans: %s, check lemma: %s" % (all_transformability_combined, rhs_in_new)
+        logger.debug("GEN0: %s", all_updated_syms)
+        logger.debug("GEN0.1: %s", rhs_in_new)
+        logger.debug("Trans: %s, check lemma: %s" % (all_transformability_combined, rhs_in_new))
         res = ivy_transrel.interpolant(all_transformability_combined,
                                        rhs_in_new,
                                        axioms=self._axioms, interpreted=None)
         assert res is not None
+        logger.debug("GEN1: %s", res[1])
+        logger.debug("GEN2: %s", to_current_clauses(res[1], all_updated_syms))
+        # return ivy_logic_utils.dual_clauses(to_current_clauses(res[1], all_updated_syms))
         return to_current_clauses(res[1], all_updated_syms)
 
 
