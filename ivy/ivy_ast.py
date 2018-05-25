@@ -304,7 +304,8 @@ class Variable(Term):
     def __init__(self, rep, sort):
         assert isinstance(rep,str)
 #        assert isinstance(sort,Sort)
-        self.rep = rep
+#         self.rep = rep
+        self.rep = rep + '_' + str(sort)
         self.args = []
         self.sort = sort
     def __repr__(self):
@@ -466,6 +467,7 @@ UninterpretedSort = ConstantSort
 class FunctionSort(Sort):
     def __init__(self,dom,rng):
         self.dom,self.rng = dom,rng
+        self.name = self.__repr__()
     def __repr__(self):
         return ' * '.join(repr(s) for s in self.dom) + ' -> ' + repr(self.rng)
     def defines(self):
