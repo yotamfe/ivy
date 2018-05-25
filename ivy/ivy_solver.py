@@ -1046,6 +1046,7 @@ def get_small_model(clauses, sorts_to_minimize, relations_to_minimize, final_con
     assumes = []
     if final_cond is not None:
         if isinstance(final_cond,list):
+            assert False, final_cond
             res = z3.unsat
             for fc in final_cond:
                 if not opt_incremental.get():
@@ -1080,7 +1081,7 @@ def get_small_model(clauses, sorts_to_minimize, relations_to_minimize, final_con
         return None
 
     if shrink:
-        print "searching for a small model...",
+        # print "searching for a small model...",
         sys.stdout.flush()
         for x in chain(sorts_to_minimize, relations_to_minimize):
             for n in itertools.count(1):
@@ -1092,7 +1093,7 @@ def get_small_model(clauses, sorts_to_minimize, relations_to_minimize, final_con
                     break
                 else:
                     s.pop()
-        print "done"
+        # print "done"
     m = get_model(s)
 #    print "model = {}".format(m)
 #    f = open("ivy.smt2","w")
