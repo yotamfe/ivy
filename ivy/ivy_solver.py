@@ -976,7 +976,7 @@ def model_if_none(clauses1,implied,model):
                 s.add(formula_to_z3(sort_size_constraint(sort,sort_size)))
             if s.check() != z3.unsat:
                 m = get_model(s)
-                print "model = {}, size = {}".format(m,sort_size)
+                # print "model = {}, size = {}".format(m,sort_size)
 ##        print "clauses1 = {}".format(clauses1)
 ##        print "z3c = {}".format(str(z3c))
                 syms = used_symbols_clauses(clauses1)
