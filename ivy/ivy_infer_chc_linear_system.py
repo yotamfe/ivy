@@ -245,8 +245,8 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
 
             # check: I_s /\ TR[action] => \/ accumulated_pre
             (_, tr_action, _) = action_update(im.module.actions[action_check_covered])
-            vc = ClausesClauses([summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses(),
-                                 tr_action] +
+            vc = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
+                                [tr_action] +
                                 [ivy_logic_utils.dual_clauses(edge.get_precondition()) for edge in matching_edges])
 
             cex = vc.get_model()
@@ -322,10 +322,18 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         action = im.module.actions[edge_action_name]
         (updated_syms, clauses, _) = action_update(action)
 
-        lhs_clauses_clauses = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
-                                             [clauses] + [edge_precond])
+        # lhs_clauses_clauses = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
+        #                                      [clauses] + [edge_precond])
+        # as_single_clauses = lhs_clauses_clauses.to_single_clauses()
+        as_single_clauses = ivy_logic_utils.and_clauses_avoid_clash(summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses(),
+                                                                    clauses,
+                                                                    edge_precond)
 
-        return (updated_syms, lhs_clauses_clauses.to_single_clauses())
+
+        return (updated_syms, as_single_clauses)
+
+    def __str__(self):
+        return "%s => %s => %s" % (self._lhs_pred, self._edge_action, self._rhs_pred)
 
 
 def out_edge_covering_tr_constraints(states, edges):
