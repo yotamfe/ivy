@@ -322,12 +322,12 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         action = im.module.actions[edge_action_name]
         (updated_syms, clauses, _) = action_update(action)
 
-        # lhs_clauses_clauses = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
-        #                                      [clauses] + [edge_precond])
-        # as_single_clauses = lhs_clauses_clauses.to_single_clauses()
-        as_single_clauses = ivy_logic_utils.and_clauses_avoid_clash(summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses(),
-                                                                    clauses,
-                                                                    edge_precond)
+        lhs_clauses_clauses = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
+                                             [clauses] + [edge_precond])
+        as_single_clauses = lhs_clauses_clauses.to_single_clauses()
+        # as_single_clauses = ivy_logic_utils.and_clauses_avoid_clash(summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses(),
+        #                                                             clauses,
+        #                                                             edge_precond)
 
 
         return (updated_syms, as_single_clauses)

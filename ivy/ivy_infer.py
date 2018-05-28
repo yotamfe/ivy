@@ -19,6 +19,7 @@ class ClausesClauses(object):
         self._conjuncts_clauses_list = clauses_list
        
     def get_conjuncts_clauses_list(self):
+        # return ivy_logic_utils.avoid_variables_clash(self._conjuncts_clauses_list) # TODO: without this, got error becuase of name capture between tr and summary, I think
         return self._conjuncts_clauses_list
     
     # TODO: remove?
@@ -54,7 +55,7 @@ class ClausesClauses(object):
         res = s.check()
         if res == z3.unsat:
             return None
-        
+        assert res == z3.sat, res
         m = ivy_solver.get_model(s)
         
         used_symbols = set.union(*[ivy_logic_utils.used_symbols_clauses(clauses1) 
@@ -218,7 +219,7 @@ def backwards_try_prove_single_goal(predicate, summary_proof_obligation,
                                     frames, current_bound, pdr_elements):
     if current_bound == 0:
         logger.debug("Dead end: nowhere to go from frame 0...")
-        return (False, summary_proof_obligation)
+        return (False, PdrCexNode(predicate)) # TODO: add proof obligation
     
     is_known_reachable, cex_info = pdr_elements.is_known_to_be_reachable(predicate, summary_proof_obligation,
                                                                          frames[current_bound].get_summaries_by_symbol_dict())
@@ -280,7 +281,7 @@ def backwards_prove_at_least_one_goal(frames, current_bound,
         summary_proof_obligation_generalization = pdr_elements.generalize_intransformability(predicate,
                                                                                              frames[current_bound-1].get_summaries_by_symbol_dict(),
                                                                                              summary_proof_obligation)
-        logger.debug("pdr strenghtening frames for %s up to bound %d with %s", 
+        logger.debug("pdr strengthening frames for %s up to bound %d with %s",
                     predicate, current_bound, summary_proof_obligation_generalization)
         for i in xrange(1, current_bound + 1):
             frames[i].strengthen(predicate, summary_proof_obligation_generalization)

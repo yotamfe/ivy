@@ -191,7 +191,8 @@ class LinearPdr(ivy_infer.PdrElements):
             clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
             transformability_clauses_unified.append(clauses)
 
-        all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
+        # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
+        all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
 
         rhs = ivy_logic_utils.dual_clauses(lemma)
         rhs_in_new = forward_clauses(rhs, all_updated_syms)
@@ -199,14 +200,32 @@ class LinearPdr(ivy_infer.PdrElements):
         logger.debug("GEN0: %s", all_updated_syms)
         logger.debug("GEN0.1: %s", rhs_in_new)
         logger.debug("Trans: %s, check lemma: %s" % (all_transformability_combined, rhs_in_new))
+        # TODO: use forward_interpolant or forward_image_map instead?
         res = ivy_transrel.interpolant(all_transformability_combined,
                                        rhs_in_new,
                                        axioms=self._axioms, interpreted=None)
+        # res = ivy_transrel.forward_interpolant(all_transformability_combined,
+        #                                        rhs,
+        #                                        axioms=self._axioms, interpreted=None)
         assert res is not None
         logger.debug("GEN1: %s", res[1])
         logger.debug("GEN2: %s", to_current_clauses(res[1], all_updated_syms))
-        # return ivy_logic_utils.dual_clauses(to_current_clauses(res[1], all_updated_syms))
-        return to_current_clauses(res[1], all_updated_syms)
+        generalization = to_current_clauses(res[1], all_updated_syms)
+        # generalization = res[1]
+        
+        # TODO: assert (in debug) that it is unreachable from previous frame, in any way
+        # for transformer in transformers:
+        #     is_transformable = transformer.check_transformability(prestate_summaries,
+        #                                                           ivy_logic_utils.dual_clauses(generalization))
+        #     if is_transformable is not None:
+        #         logger.info(str(transformer))
+        #         is_res_actually_unsat = ClausesClauses([all_transformability_combined, ivy_logic_utils.dual_clauses(res[1])]).get_model()
+        #         logger.info("is res unsat: %s", is_res_actually_unsat is None)
+        #         is_gen_actually_unsat = ClausesClauses([all_transformability_combined, forward_clauses(ivy_logic_utils.dual_clauses(generalization), all_updated_syms)]).get_model()
+        #         logger.info("is gen unsat: %s", is_gen_actually_unsat is None)
+        #         logger.debug("Trans vocab of this action: %s", transformer.transformability_update(prestate_summaries, ivy_transrel.new))
+        #         assert False
+        return generalization
 
 
         # # TODO: generalizing separately and then combining is potentially less efficient becauase of different local minima of the unsat core
