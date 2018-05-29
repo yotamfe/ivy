@@ -144,8 +144,10 @@ class LinearPdr(ivy_infer.PdrElements):
         for safety_constraint in self._end_chc:
             bad_model = safety_constraint.check_satisfaction(summaries)
             if bad_model is None:
+                logger.debug("%s is satisfied" % str(safety_constraint))
                 continue
 
+            logger.debug("Counterexample to %s", str(safety_constraint))
             proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model)
             proof_obligations.append((safety_constraint,
                                       [(safety_constraint.lhs_pred(), proof_obligation)]))
@@ -212,7 +214,7 @@ class LinearPdr(ivy_infer.PdrElements):
         logger.debug("GEN2: %s", to_current_clauses(res[1], all_updated_syms))
         generalization = to_current_clauses(res[1], all_updated_syms)
         # generalization = res[1]
-        
+
         # TODO: assert (in debug) that it is unreachable from previous frame, in any way
         # for transformer in transformers:
         #     is_transformable = transformer.check_transformability(prestate_summaries,

@@ -25,6 +25,7 @@ import ivy_actions
 import ivy_solver
 import ivy_logic
 import json
+import datetime
 
 logger = logging.getLogger(__file__)
 
@@ -437,8 +438,35 @@ def infer_safe_summaries(automaton_filename, output_filename=None, check_only=Tr
 
     infer_automaton(automaton, end, mid, output_filename)
 
+def sort_mid_constraints_by_heuristic_precedence(mid):
+    return sorted(mid, key=lambda midc: midc.lhs_pred() != midc.rhs_pred(), reverse=True)
+
+def sort_safety_constraints_by_heuristic_precedence(init, mid, end):
+    explored_states = [init_state for (init_state, _) in init]
+
+    while True:
+        exploratory_transformers = filter(lambda midc: midc.lhs_pred() in explored_states and midc.rhs_pred() not in explored_states,
+                                          mid)
+        new_states = set(map(lambda midc: midc.rhs_pred(), exploratory_transformers))
+        if not new_states:
+            break
+        explored_states.extend(new_states)
+
+    safety_forward_order = []
+    for state in explored_states:
+        safety_of_state = filter(lambda endc: endc.lhs_pred() == state, end)
+        safety_forward_order.extend(safety_of_state)
+
+    assert set(safety_forward_order) == set(end), "Not all states explored; is the graph not connected? Got %s" % safety_forward_order
+    return list(reversed(safety_forward_order))
 
 def infer_automaton(automaton, end, mid, output_filename):
+    mid = sort_mid_constraints_by_heuristic_precedence(mid)
+    end = sort_safety_constraints_by_heuristic_precedence(automaton.init, mid, end)
+
+    start_time = datetime.datetime.now()
+    logger.info("Starting inference. Time: %s", start_time)
+
     pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(automaton.states, automaton.init, mid, end,
                                                              ivy_infer_universal.UnivGeneralizer(),
                                                              ivy_all_axioms())
@@ -454,6 +482,9 @@ def infer_automaton(automaton, end, mid, output_filename):
             cex = cex.children[0]
     else:
         safe_frame = frame_or_cex
+        end_time = datetime.datetime.now()
+        logger.info("Proof found. Time: %s", datetime.datetime.now())
+        logger.info("Inference time: %s", end_time - start_time)
         for state, summary in safe_frame.iteritems():
             logger.info("Summary of %s: %s", state, summary.get_summary())
 
@@ -501,7 +532,7 @@ def check_automaton(automaton, end, mid, output_filename):
 
     for safec, res in safety_checks.iteritems():
         if res is not None:
-            logger.info("Safey failed: %s", str(safec))
+            logger.info("Safety failed: %s", str(safec))
             is_inductive = False
 
     for edgec, res_lst in mid_checks.iteritems():
