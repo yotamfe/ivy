@@ -1191,72 +1191,72 @@ def or_clauses(*args):
             idx += 1
     return fix_or_annot(res, fixed_vs, orig_args)
 
-def or_clauses_avoid_clash2(*args):
-    if not any(isinstance(a,Clauses) for a in args):
-        return Or(*args)
-    args = coerce_args_to_clauses(args)
-    args = [a for a in args if not a.is_false()]
-    if len(args) == 0:
-        res,vs = false_clauses(),[]
-    elif len(args) == 1:
-        res,vs = args[0],[And()]
-    else:
-        assert len(args) == 2
-        arg1, arg2 = args
-
-        subs = distinct_variable_renaming(used_variables_clauses(arg2),
-                                          used_variables_clauses(arg1))
-        arg2 = substitute_clauses(arg2, subs)
-        # res = Clauses(fmlas=[Or(And(*arg1.fmlas),
-        #                         And(*arg2.fmlas))],
-        #               defs=arg1.defs + arg2.defs)
-        res = Clauses(fmlas=[Or(arg1.to_open_formula(),
-                                arg2.to_open_formula())])
-
-    return res
-
-def avoid_variables_clash(args):
-    # TODO: can just rename every variable to variable+sort instead of actually renaming, no?
-    import logging
-    logging.debug("Or renaming: %s", args)
-    args_renamed = [args[0]]
-    vars_in_prev_args = set(used_variables_clauses(args_renamed[0]))
-    for arg in args[1:]:
-        logging.debug("Not to use symbols: %s", vars_in_prev_args)
-        logging.debug("Symbols in arg: %s", used_variables_clauses(arg))
-        subs = distinct_variable_renaming(used_variables_clauses(arg),
-                                          vars_in_prev_args)
-        logging.debug("Substitute: %s", subs)
-        arg_renamed = substitute_clauses(arg, subs)
-        args_renamed.append(arg_renamed)
-        logging.debug("Arg: %s, from %s.", arg_renamed, arg)
-        vars_in_prev_args |= set(used_variables_clauses(arg_renamed))
-    return args_renamed
-
-def or_clauses_with_tseitins_avoid_clash(*args):
-    args_renamed = avoid_variables_clash(args)
-
-    return or_clauses(*args_renamed)
-
-
-def and_clauses_avoid_clash(*args):
-    import ivy_transrel
-    args = avoid_variables_clash(args)
-    res = true_clauses()
-    for clauses in args:
-        res = ivy_transrel.conjoin(res, clauses)
-    return res
-    # return and_clauses(avoid_variables_clash(args)) # TODO: use ivy_transrel.conjoin?
-
-
-
-def or_clauses_avoid_clash(*args):
-    if len(args) == 0:
-        return false_clauses()
-    res = args[0]
-    for disjunct in args[1:]:
-        res = or_clauses_avoid_clash2(res, disjunct)
-    return res
+# def or_clauses_avoid_clash2(*args):
+#     if not any(isinstance(a,Clauses) for a in args):
+#         return Or(*args)
+#     args = coerce_args_to_clauses(args)
+#     args = [a for a in args if not a.is_false()]
+#     if len(args) == 0:
+#         res,vs = false_clauses(),[]
+#     elif len(args) == 1:
+#         res,vs = args[0],[And()]
+#     else:
+#         assert len(args) == 2
+#         arg1, arg2 = args
+#
+#         subs = distinct_variable_renaming(used_variables_clauses(arg2),
+#                                           used_variables_clauses(arg1))
+#         arg2 = substitute_clauses(arg2, subs)
+#         # res = Clauses(fmlas=[Or(And(*arg1.fmlas),
+#         #                         And(*arg2.fmlas))],
+#         #               defs=arg1.defs + arg2.defs)
+#         res = Clauses(fmlas=[Or(arg1.to_open_formula(),
+#                                 arg2.to_open_formula())])
+#
+#     return res
+#
+# def avoid_variables_clash(args):
+#     # TODO: can just rename every variable to variable+sort instead of actually renaming, no?
+#     import logging
+#     logging.debug("Or renaming: %s", args)
+#     args_renamed = [args[0]]
+#     vars_in_prev_args = set(used_variables_clauses(args_renamed[0]))
+#     for arg in args[1:]:
+#         logging.debug("Not to use symbols: %s", vars_in_prev_args)
+#         logging.debug("Symbols in arg: %s", used_variables_clauses(arg))
+#         subs = distinct_variable_renaming(used_variables_clauses(arg),
+#                                           vars_in_prev_args)
+#         logging.debug("Substitute: %s", subs)
+#         arg_renamed = substitute_clauses(arg, subs)
+#         args_renamed.append(arg_renamed)
+#         logging.debug("Arg: %s, from %s.", arg_renamed, arg)
+#         vars_in_prev_args |= set(used_variables_clauses(arg_renamed))
+#     return args_renamed
+#
+# def or_clauses_with_tseitins_avoid_clash(*args):
+#     args_renamed = avoid_variables_clash(args)
+#
+#     return or_clauses(*args_renamed)
+#
+#
+# def and_clauses_avoid_clash(*args):
+#     import ivy_transrel
+#     args = avoid_variables_clash(args)
+#     res = true_clauses()
+#     for clauses in args:
+#         res = ivy_transrel.conjoin(res, clauses)
+#     return res
+#     # return and_clauses(avoid_variables_clash(args)) # TODO: use ivy_transrel.conjoin?
+#
+#
+#
+# def or_clauses_avoid_clash(*args):
+#     if len(args) == 0:
+#         return false_clauses()
+#     res = args[0]
+#     for disjunct in args[1:]:
+#         res = or_clauses_avoid_clash2(res, disjunct)
+#     return res
 
 
 
