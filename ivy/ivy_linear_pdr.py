@@ -142,8 +142,7 @@ class LinearPdr(ivy_infer.PdrElements):
         return current_summaries
 
     def _push_to_other_preds(self, pred, prev_summaries, current_summaries, current_bound):
-        # if not PUSH_TO_OTHER_PREDS:
-
+        # if not PUSH_TO_OTHER_PREDS
 
         outgoing_edges_targets = set(midc.rhs_pred() for midc in self._mid_chc if midc.lhs_pred() == pred)
         for target_pred in outgoing_edges_targets:
@@ -155,8 +154,8 @@ class LinearPdr(ivy_infer.PdrElements):
                     logger.debug("Pushing cache hit: %s => %s of %s in %d", pred, target_pred, lemma, current_bound)  # TODO: remove
                     continue
                 logger.debug("Pushing cache miss: %s => %s of %s in %d", pred, target_pred, lemma, current_bound) # TODO: remove
-                cexs_list = self.check_transformability_to_violation(target_pred, prev_summaries, lemma)
-                if cexs_list:
+                is_guaranteed_by_pre = self.check_transformability_to_violation_bool_res(target_pred, prev_summaries, lemma)
+                if not is_guaranteed_by_pre:
                     logger.debug("Could not push between predicates %s => %s: %s, frame %d", pred, target_pred, lemma, current_bound)
                     self._failed_push_cache.add((target_pred, current_bound, lemma))
                     continue
@@ -183,6 +182,20 @@ class LinearPdr(ivy_infer.PdrElements):
                                       [(safety_constraint.lhs_pred(), proof_obligation)]))
 
         return proof_obligations
+
+    def check_transformability_to_violation_bool_res(self, predicate, summaries_by_symbol, proof_obligation):
+        # return not self.check_transformability_to_violation(predicate, summaries_by_symbol, proof_obligation)
+
+        all_transformability_combined, all_updated_syms = self._unified_transformability_update(predicate, summaries_by_symbol)
+
+        rhs = ivy_logic_utils.dual_clauses(proof_obligation)
+        rhs_in_new = forward_clauses(rhs, all_updated_syms)
+
+        vc = ClausesClauses([all_transformability_combined, rhs_in_new, self._axioms])
+        cex = vc.get_model()
+        if cex is None:
+            return True
+        return False
 
     def check_transformability_to_violation(self, predicate, summaries_by_symbol, proof_obligation):
         proof_obligations = []
@@ -212,19 +225,7 @@ class LinearPdr(ivy_infer.PdrElements):
         return False, None
 
     def generalize_intransformability(self, predicate, prestate_summaries, lemma):
-        transformers = filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc)
-        transformability_clauses = map(lambda midc: midc.transformability_update(prestate_summaries, ivy_transrel.new),
-                                       transformers)
-        all_updated_syms = set.union(*(set(updated_syms) for (updated_syms, _) in transformability_clauses))
-        transformability_clauses_unified = []
-        for (updated_syms, clauses) in transformability_clauses:
-            unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
-                                                      im.module.relations, ivy_transrel.new)
-            clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
-            transformability_clauses_unified.append(clauses)
-
-        # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
-        all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
+        all_transformability_combined, all_updated_syms = self._unified_transformability_update(predicate, prestate_summaries)
 
         rhs = ivy_logic_utils.dual_clauses(lemma)
         rhs_in_new = forward_clauses(rhs, all_updated_syms)
@@ -275,3 +276,18 @@ class LinearPdr(ivy_infer.PdrElements):
         #                                                                    generalization_for_clause)
         #
         # return lemma_generalization
+
+    def _unified_transformability_update(self, predicate, prestate_summaries):
+        transformers = filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc)
+        transformability_clauses = map(lambda midc: midc.transformability_update(prestate_summaries, ivy_transrel.new),
+                                       transformers)
+        all_updated_syms = set.union(*(set(updated_syms) for (updated_syms, _) in transformability_clauses))
+        transformability_clauses_unified = []
+        for (updated_syms, clauses) in transformability_clauses:
+            unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
+                                                      im.module.relations, ivy_transrel.new)
+            clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
+            transformability_clauses_unified.append(clauses)
+        # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
+        all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
+        return all_transformability_combined, all_updated_syms
