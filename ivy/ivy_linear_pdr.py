@@ -108,6 +108,8 @@ class LinearPdr(ivy_infer.PdrElements):
 
         self._axioms = axioms
 
+        self._failed_push_cache = set()
+
     def initial_summary(self):
         initial_summary = {pred: ivy_logic_utils.false_clauses() for pred in self._preds}
 
@@ -139,12 +141,40 @@ class LinearPdr(ivy_infer.PdrElements):
 
         return current_summaries
 
-    def check_summary_safety(self, summaries):
+    def _push_to_other_preds(self, pred, prev_summaries, current_summaries, current_bound):
+        # if not PUSH_TO_OTHER_PREDS:
+
+
+        outgoing_edges_targets = set(midc.rhs_pred() for midc in self._mid_chc if midc.lhs_pred() == pred)
+        for target_pred in outgoing_edges_targets:
+            for lemma in current_summaries[pred].get_summary().get_conjuncts_clauses_list():
+                if current_summaries[target_pred].get_summary().has_conjunct(lemma):
+                    continue
+                if (target_pred, current_bound, lemma) in self._failed_push_cache:
+                    # heuristic not to check the same failed lemma many times
+                    logger.debug("Pushing cache hit: %s => %s of %s in %d", pred, target_pred, lemma, current_bound)  # TODO: remove
+                    continue
+                logger.debug("Pushing cache miss: %s => %s of %s in %d", pred, target_pred, lemma, current_bound) # TODO: remove
+                cexs_list = self.check_transformability_to_violation(target_pred, prev_summaries, lemma)
+                if cexs_list:
+                    logger.debug("Could not push between predicates %s => %s: %s, frame %d", pred, target_pred, lemma, current_bound)
+                    self._failed_push_cache.add((target_pred, current_bound, lemma))
+                    continue
+
+                logger.debug("Pushing between predicates %s => %s: %s", pred, target_pred, lemma)
+                current_summaries[target_pred].strengthen(lemma)
+
+        return current_summaries
+
+    def check_summary_safety(self, summaries, prev_summaries=None, current_bound=None):
         proof_obligations = []
         for safety_constraint in self._end_chc:
             bad_model = safety_constraint.check_satisfaction(summaries)
             if bad_model is None:
                 logger.debug("%s is satisfied" % str(safety_constraint))
+                # TODO: does it make sense here, pushing might eliminate some cexs previously obtained..
+                if prev_summaries is not None:
+                    self._push_to_other_preds(safety_constraint.lhs_pred(), prev_summaries, summaries, current_bound)
                 continue
 
             logger.debug("Counterexample to %s", str(safety_constraint))

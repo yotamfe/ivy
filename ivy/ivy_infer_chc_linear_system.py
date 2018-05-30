@@ -262,6 +262,9 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         return None
 
+    def __str__(self):
+        return "Edge covering of %s by %s" % (self.lhs_pred(), self._out_edges_actions)
+
 
 class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
     def __init__(self, lhs_pred, edge_action, rhs_pred):

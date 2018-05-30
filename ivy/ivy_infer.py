@@ -127,7 +127,7 @@ class PdrElements(object):
     
     # Return None if safe or proof obligation otherwise
     @abc.abstractmethod
-    def check_summary_safety(self, summaries):
+    def check_summary_safety(self, summaries, prev_summaries=None, current_bound=None):
         pass
     
     # return None or a new proof obligation
@@ -304,7 +304,12 @@ def backward_refine_frames_or_counterexample(frames, new_bound,
     while True:
         new_frame_summaries = frames[new_bound].get_summaries_by_symbol_dict()
        
-        proof_obligations_per_constraint_lst = pdr_elements.check_summary_safety(new_frame_summaries)
+        proof_obligations_per_constraint_lst = pdr_elements.check_summary_safety(new_frame_summaries,
+                                                                                 frames[new_bound-1].get_summaries_by_symbol_dict(),
+                                                                                 new_bound)
+
+        log_frames(frames, new_bound) # TODO: remove
+
         if not proof_obligations_per_constraint_lst:
             logger.debug("pdr frame %d is safe", new_bound)
             return (True, None)
@@ -318,16 +323,15 @@ def backward_refine_frames_or_counterexample(frames, new_bound,
                 return (False, cex)
         
 def log_frames(frames, new_bound):
-    return # TODO: temp hack (25/3/2018)
     for i in xrange(0, new_bound):
         logger.debug("Frame %d:", i)
         summaries = frames[i].get_summaries_by_symbol_dict()
         for name, summary in summaries.iteritems():
-            logger.debug("Summary of %s", name)
-            # TODO: this is very bad here, move to __str__ of summary
-            logger.debug("Updated syms: %s", summary.get_updated_vars())
-            for clause in summary.update_clauses_clauses().get_conjuncts_clauses_list():
-                logger.debug("Summary clause: %s", clause)
+            # logger.debug("Summary of %s", name)
+            # # TODO: this is very bad here, move to __str__ of summary
+            # logger.debug("Updated syms: %s", summary.get_updated_vars())
+            for clause in summary.get_summary().get_conjuncts_clauses_list():
+                logger.debug("Summary clause of %s: %s", name, clause)
 
 def assert_frames_monotonicity(frames, max_frame):
     for i in xrange(1, max_frame-1):
