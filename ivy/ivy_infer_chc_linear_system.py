@@ -458,7 +458,8 @@ def sort_safety_constraints_by_heuristic_precedence(init, mid, end):
         safety_forward_order.extend(safety_of_state)
 
     assert set(safety_forward_order) == set(end), "Not all states explored; is the graph not connected? Got %s" % safety_forward_order
-    return list(reversed(safety_forward_order))
+    # return list(reversed(safety_forward_order))
+    return safety_forward_order
 
 def infer_automaton(automaton, end, mid, output_filename):
     mid = sort_mid_constraints_by_heuristic_precedence(mid)
