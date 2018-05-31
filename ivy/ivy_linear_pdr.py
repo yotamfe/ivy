@@ -214,6 +214,7 @@ class LinearPdr(ivy_infer.PdrElements):
             new_proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
             pre_pred = mid_constraint.lhs_pred()
             proof_obligations.append((mid_constraint, [(pre_pred, new_proof_obligation)]))
+            return proof_obligations
 
         return proof_obligations
 
@@ -234,23 +235,23 @@ class LinearPdr(ivy_infer.PdrElements):
         pre_pred = causing_constraint.lhs_pred()
 
         # ############# TODO: remove
-        # bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation)) # TODO: remove
-        # assert bad_model_lhs is not None
+        bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation)) # TODO: remove
+        assert bad_model_lhs is not None
         # #############
 
-        causing_updated_syms, causing_transform_clauses = causing_constraint.transformability_update(summaries_by_symbol,
-                                                                                                     ivy_transrel.new)
-        rhs_in_new_for_causing = forward_clauses(rhs, causing_updated_syms)
-        bad_model_lhs = ivy_infer.PdrCexModel(cex,
-                                              ClausesClauses([causing_transform_clauses,
-                                                              rhs_in_new_for_causing,
-                                                              self._axioms]).to_single_clauses(),
-                                              project_pre=True)
+        # causing_updated_syms, causing_transform_clauses = causing_constraint.transformability_update(summaries_by_symbol,
+        #                                                                                              ivy_transrel.new)
+        # rhs_in_new_for_causing = forward_clauses(rhs, causing_updated_syms)
+        # bad_model_lhs = ivy_infer.PdrCexModel(cex,
+        #                                       ClausesClauses([causing_transform_clauses,
+        #                                                       rhs_in_new_for_causing,
+        #                                                       self._axioms]).to_single_clauses(),
+        #                                       project_pre=True)
 
         proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
         # ############# TODO: remove
-        bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation)) # TODO: remove
-        assert bad_model_lhs is not None
+        # bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation)) # TODO: remove
+        # assert bad_model_lhs is not None
         # #############
         logging.debug("Proof obligation: %s", proof_obligation)
 
