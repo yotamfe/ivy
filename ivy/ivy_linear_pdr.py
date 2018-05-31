@@ -132,8 +132,8 @@ class LinearPdr(ivy_infer.PdrElements):
                 if clauses in current_clauses_lst:
                     continue
 
-                transformability_cex = self.check_transformability_to_violation(pred, prev_summaries, clauses)
-                if transformability_cex:
+                is_guaranteed_by_pre = self.check_intransformability_to_violation_bool_res(pred, prev_summaries, clauses)
+                if not is_guaranteed_by_pre:
                     continue
 
                 logging.debug("Pushing to next frame for %s: %s", pred, clauses)
@@ -143,6 +143,7 @@ class LinearPdr(ivy_infer.PdrElements):
 
     def _push_to_other_preds(self, pred, prev_summaries, current_summaries, current_bound):
         # if not PUSH_TO_OTHER_PREDS
+        # return current_summaries # TODO: remove
 
         outgoing_edges_targets = set(midc.rhs_pred() for midc in self._mid_chc if midc.lhs_pred() == pred)
         for target_pred in outgoing_edges_targets:
@@ -154,7 +155,7 @@ class LinearPdr(ivy_infer.PdrElements):
                     logger.debug("Pushing cache hit: %s => %s of %s in %d", pred, target_pred, lemma, current_bound)  # TODO: remove
                     continue
                 logger.debug("Pushing cache miss: %s => %s of %s in %d", pred, target_pred, lemma, current_bound) # TODO: remove
-                is_guaranteed_by_pre = self.check_transformability_to_violation_bool_res(target_pred, prev_summaries, lemma)
+                is_guaranteed_by_pre = self.check_intransformability_to_violation_bool_res(target_pred, prev_summaries, lemma)
                 if not is_guaranteed_by_pre:
                     logger.debug("Could not push between predicates %s => %s: %s, frame %d", pred, target_pred, lemma, current_bound)
                     self._failed_push_cache.add((target_pred, current_bound, lemma))
@@ -183,7 +184,7 @@ class LinearPdr(ivy_infer.PdrElements):
 
         return proof_obligations
 
-    def check_transformability_to_violation_bool_res(self, predicate, summaries_by_symbol, proof_obligation):
+    def check_intransformability_to_violation_bool_res(self, predicate, summaries_by_symbol, proof_obligation):
         # return not self.check_transformability_to_violation(predicate, summaries_by_symbol, proof_obligation)
 
         all_transformability_combined, all_updated_syms = self._unified_transformability_update(predicate, summaries_by_symbol)
@@ -289,5 +290,6 @@ class LinearPdr(ivy_infer.PdrElements):
             clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
             transformability_clauses_unified.append(clauses)
         # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
-        all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
+        all_transformability_combined = ivy_logic_utils.tagged_or_clauses('__edge', *transformability_clauses_unified)
+        # all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
         return all_transformability_combined, all_updated_syms
