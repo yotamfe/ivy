@@ -187,7 +187,7 @@ class LinearPdr(ivy_infer.PdrElements):
     def check_intransformability_to_violation_bool_res(self, predicate, summaries_by_symbol, proof_obligation):
         # return not self.check_transformability_to_violation(predicate, summaries_by_symbol, proof_obligation)
 
-        all_transformability_combined, all_updated_syms = self._unified_transformability_update(predicate, summaries_by_symbol)
+        all_transformability_combined, all_updated_syms, _ = self._unified_transformability_update(predicate, summaries_by_symbol)
 
         rhs = ivy_logic_utils.dual_clauses(proof_obligation)
         rhs_in_new = forward_clauses(rhs, all_updated_syms)
@@ -199,23 +199,57 @@ class LinearPdr(ivy_infer.PdrElements):
         return False
 
     def check_transformability_to_violation(self, predicate, summaries_by_symbol, proof_obligation):
-        proof_obligations = []
+        # proof_obligations = []
+        #
+        # for mid_constraint in self._mid_chc:
+        #     if mid_constraint.rhs_pred() != predicate:
+        #         continue
+        #
+        #     logging.debug("Proof obligation: %s", proof_obligation)
+        #     bad_model_lhs = mid_constraint.check_transformability(summaries_by_symbol,
+        #                                                           ivy_logic_utils.dual_clauses(proof_obligation))
+        #     if bad_model_lhs is None:
+        #         continue
+        #
+        #     proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
+        #     pre_pred = mid_constraint.lhs_pred()
+        #     proof_obligations.append((mid_constraint, [(pre_pred, proof_obligation)]))
+        #
+        # return proof_obligations
 
-        for mid_constraint in self._mid_chc:
-            if mid_constraint.rhs_pred() != predicate:
-                continue
+        all_transformability_combined, all_updated_syms, transformers = self._unified_transformability_update(predicate,
+                                                                                                              summaries_by_symbol)
 
-            logging.debug("Proof obligation: %s", proof_obligation)
-            bad_model_lhs = mid_constraint.check_transformability(summaries_by_symbol,
-                                                                  ivy_logic_utils.dual_clauses(proof_obligation))
-            if bad_model_lhs is None:
-                continue
+        rhs = ivy_logic_utils.dual_clauses(proof_obligation)
+        rhs_in_new = forward_clauses(rhs, all_updated_syms)
 
-            proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
-            pre_pred = mid_constraint.lhs_pred()
-            proof_obligations.append((mid_constraint, [(pre_pred, proof_obligation)]))
+        vc = ClausesClauses([all_transformability_combined, rhs_in_new, self._axioms])
+        cex = vc.get_model()
+        if cex is None:
+            return []
 
-        return proof_obligations
+        causing_constraint_idx = ivy_logic_utils.find_true_disjunct(all_transformability_combined,
+                                                                    cex.eval)
+        causing_constraint = transformers[causing_constraint_idx]
+        pre_pred = causing_constraint.lhs_pred()
+        ############# TODO: remove
+        bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation)) # TODO: remove
+        assert bad_model_lhs is not None
+        #############
+
+        # causing_updated_syms, causing_transform_clauses = causing_constraint.transformability_update(summaries_by_symbol,
+        #                                                                                              ivy_transrel.new)
+        # rhs_in_new_for_causing = forward_clauses(rhs, causing_updated_syms)
+        # bad_model_lhs = ivy_infer.PdrCexModel(cex,
+        #                                       ClausesClauses([causing_transform_clauses,
+        #                                                      rhs_in_new_for_causing]).to_single_clauses(),
+        #                                       project_pre=True)
+
+        proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
+        logging.debug("Proof obligation: %s", proof_obligation)
+
+        logger.debug("Check transformability returned proof obligation: %s", [(causing_constraint, [(pre_pred, proof_obligation)])])
+        return [(causing_constraint, [(pre_pred, proof_obligation)])]
 
     def mark_reachable(self, predicate, summary_proof_obligation,
                        summaries, cex_info):
@@ -226,7 +260,7 @@ class LinearPdr(ivy_infer.PdrElements):
         return False, None
 
     def generalize_intransformability(self, predicate, prestate_summaries, lemma):
-        all_transformability_combined, all_updated_syms = self._unified_transformability_update(predicate, prestate_summaries)
+        all_transformability_combined, all_updated_syms, _ = self._unified_transformability_update(predicate, prestate_summaries)
 
         rhs = ivy_logic_utils.dual_clauses(lemma)
         rhs_in_new = forward_clauses(rhs, all_updated_syms)
@@ -292,4 +326,4 @@ class LinearPdr(ivy_infer.PdrElements):
         # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
         all_transformability_combined = ivy_logic_utils.tagged_or_clauses('__edge', *transformability_clauses_unified)
         # all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
-        return all_transformability_combined, all_updated_syms
+        return all_transformability_combined, all_updated_syms, transformers
