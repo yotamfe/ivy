@@ -199,24 +199,24 @@ class LinearPdr(ivy_infer.PdrElements):
         return False
 
     def check_transformability_to_violation(self, predicate, summaries_by_symbol, proof_obligation):
-        proof_obligations = []
-
-        for mid_constraint in self._mid_chc:
-            if mid_constraint.rhs_pred() != predicate:
-                continue
-
-            logging.debug("Proof obligation: %s", proof_obligation)
-            bad_model_lhs = mid_constraint.check_transformability(summaries_by_symbol,
-                                                                  ivy_logic_utils.dual_clauses(proof_obligation))
-            if bad_model_lhs is None:
-                continue
-
-            new_proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
-            pre_pred = mid_constraint.lhs_pred()
-            proof_obligations.append((mid_constraint, [(pre_pred, new_proof_obligation)]))
-            return proof_obligations
-
-        return proof_obligations
+        # proof_obligations = []
+        #
+        # for mid_constraint in self._mid_chc:
+        #     if mid_constraint.rhs_pred() != predicate:
+        #         continue
+        #
+        #     logging.debug("Proof obligation: %s", proof_obligation)
+        #     bad_model_lhs = mid_constraint.check_transformability(summaries_by_symbol,
+        #                                                           ivy_logic_utils.dual_clauses(proof_obligation))
+        #     if bad_model_lhs is None:
+        #         continue
+        #
+        #     new_proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
+        #     pre_pred = mid_constraint.lhs_pred()
+        #     proof_obligations.append((mid_constraint, [(pre_pred, new_proof_obligation)]))
+        #     return proof_obligations
+        #
+        # return proof_obligations
 
         all_transformability_combined, all_updated_syms, transformers = self._unified_transformability_update(predicate,
                                                                                                               summaries_by_symbol)
