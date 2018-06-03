@@ -336,7 +336,7 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
 
         return (updated_syms, as_single_clauses)
 
-    def __str__(self):
+    def __repr__(self):
         return "%s => %s => %s" % (self._lhs_pred, self._edge_action, self._rhs_pred)
 
 
@@ -366,9 +366,11 @@ class AutomatonFileRepresentation(object):
         self.init = [(self.json_data['init'], global_initial_state())]
 
         if 'quantifiers' in self.json_data:
+            logger.debug("Loading quantifiers...")
             load_quantifiers(self.json_data['quantifiers'])
 
         if 'axiom' in self.json_data:
+            logger.debug("Loading axiom...")
             load_axiom(self.json_data['axiom'])
 
         self.edges = []
@@ -377,6 +379,7 @@ class AutomatonFileRepresentation(object):
                 target = e['target']
                 action = e['action']
                 if 'precond' in e:
+                    logger.debug("Loading edge %s", e['precond'])
                     self.precondition = ivy_logic_utils.to_clauses(e['precond'])
                 else:
                     self.precondition = ivy_logic_utils.true_clauses()
@@ -385,7 +388,10 @@ class AutomatonFileRepresentation(object):
         if not safety_str:
             self.safety_clauses_lst = global_safety_clauses_lst()
         else:
+            logger.debug("Loading safety %s", safety_str)
             self.safety_clauses_lst = [ivy_logic_utils.to_clauses(self._str_back_to_clauses(safety_str))]
+
+        logger.debug("Done loading automaton")
 
     def dump_with_state_characterization(self, outfilename, characterization_per_state):
         new_data = self.json_data.copy()
