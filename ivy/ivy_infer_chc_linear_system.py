@@ -231,7 +231,7 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
         self._out_edges_actions = out_edges_actions
         checked_wrt_to_actions = self.full_tr_list_actions()
         for out_edge in self._out_edges_actions:
-            assert out_edge.get_action_name() in checked_wrt_to_actions
+            assert out_edge.get_action_name() in checked_wrt_to_actions, "%s not known from %s" % (out_edge.get_action_name(), checked_wrt_to_actions)
 
     def full_tr_list_actions(self):
         # excluding the action representing the disjunction of all actions
@@ -526,7 +526,8 @@ def check_automaton(automaton, end, mid, output_filename):
     summaries_by_pred = {state: ivy_infer.PredicateSummary(state, characterization_clauses_lst)
                          for (state, characterization_clauses_lst) in automaton.characterization_by_state().iteritems()}
 
-    init_check_lst = {init_state: (ivy_solver.clauses_imply_list(init_cond, summaries_by_pred[init_state].get_summary().get_conjuncts_clauses_list()))
+    init_check_lst = {init_state: (ivy_solver.clauses_list_imply_list([init_cond, ivy_all_axioms()],
+                                                                      summaries_by_pred[init_state].get_summary().get_conjuncts_clauses_list()))
                       for (init_state, init_cond) in automaton.init}
 
     safety_checks = {endc: endc.check_satisfaction(summaries_by_pred) for endc in end}
@@ -537,7 +538,7 @@ def check_automaton(automaton, end, mid, output_filename):
 
     for init_state, res_lst in init_check_lst.iteritems():
         if not all(res_lst):
-            logger.info("Init check failed: %s ", init_state)
+            logger.info("Init check failed: %s, %s", init_state, res_lst)
             is_inductive = False
 
     for safec, res in safety_checks.iteritems():
