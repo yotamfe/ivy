@@ -182,6 +182,8 @@ def main():
 
             # inspired by ivy_check.check_module()
             isolates = sorted(list(im.module.isolates))
+            if len(isolates) == 0:
+                isolates = [None]
             assert len(isolates) == 1
             isolate = isolates[0]
             with im.module.copy():
