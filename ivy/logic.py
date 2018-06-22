@@ -46,6 +46,7 @@ class FunctionSort(recstruct('FunctionSort', [], ['*sorts'])):
     domain = property(itemgetter(slice(None,-1)), doc='tuple of sorts')
     range = property(itemgetter(-1))
     arity = property(lambda self: len(self.domain))
+    name = property(lambda  self: self.__str__())
 
 
 class EnumeratedSort(recstruct('EnumeratedSort', ['name','extension'], [])):
@@ -112,11 +113,18 @@ class Var(recstruct('Var', ['name', 'sort'], [])):
     def _preprocess_(cls, name, sort):
         if name and not name[0].isupper():
             raise IvyError("Bad variable name: {!r}".format(name))
-        return name, sort
+        return name + "_" + str(sort), sort
+    rep = property(lambda self: self.name)
     def __str__(self):
-        return self.name
+        return self.rep
+    def __repr__(self):
+        return self.rep
     def __call__(self, *terms):
         return Apply(self, *terms) if len(terms) > 0 else self
+    def __eq__(self,other):
+        return type(self) == type(other) and self.rep == other.rep # and self.sort == other.sort
+    def __hash__(self):
+        return hash(self.rep)
 
 
 class Const(recstruct('Const', ['name', 'sort'], [])):

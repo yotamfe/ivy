@@ -672,11 +672,10 @@ def exclusivity(sort,variants):
 Variable = lg.Var
 Variable.args = property(lambda self: [])
 Variable.clone = lambda self,args: self
-Variable.rep = property(lambda self: self.name)
+# Variable._rep = lambda self: self.name + '_' + str(self.sort)
 Variable.__call__ = lambda self,*args: App(self,*args) if isinstance(self.sort,FunctionSort) else self
 Variable.rename = lambda self,name: Variable(name,self.sort)
 Variable.resort = lambda self,sort : Variable(self.name,sort)
-
 
 class Literal(AST):
     """

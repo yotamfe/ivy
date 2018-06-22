@@ -305,26 +305,31 @@ class Variable(Term):
         assert isinstance(rep,str)
 #        assert isinstance(sort,Sort)
 #         self.rep = rep
-        self.rep = rep + '_' + str(sort)
+        self._base_rep = rep
+        # self.rep = self._base_rep + '_' + str(sort) # TODO: does this break resort?
         self.args = []
         self.sort = sort
+    def base_name(self):
+        return self._base_rep
+    def _rep(self):
+        return self._base_rep + '_' + str(self.sort)
     def __repr__(self):
-        res =  self.rep
+        res = self._rep()
         res += ':' + str(self.sort)
         return res
     def clone(self,args):
         return self
     def __eq__(self,other):
-        return type(self) == type(other) and self.rep == other.rep
+        return type(self) == type(other) and self._rep() == other._rep() # and self.sort == other.sort
     def __hash__(self):
-        return hash(self.rep)
+        return hash(self._rep())
     def to_const(self,prefix):
-        res = App(prefix + self.rep)
+        res = App(prefix + self._rep())
         if hasattr(self,'sort'):
             res.sort = self.sort
         return res
     def resort(self,sort):
-        res = Variable(self.rep,sort)
+        res = Variable(self._base_rep, sort)
         if hasattr(self,'lineno'):
             res.lineno = self.lineno
         return res
