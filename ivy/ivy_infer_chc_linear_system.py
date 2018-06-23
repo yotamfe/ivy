@@ -357,6 +357,27 @@ def load_axiom(axiom_str):
     import ivy_ast
     im.module.labeled_axioms.append(ivy_ast.LabeledFormula('use-defined', ivy_logic_utils.to_formula(axiom_str)))
 
+# automaton object:
+#   - name(string, optional) for documentation purposes, ignored by ivy
+#   - states(array of state objects, required) lists the states of the automaton,
+#     state objects described below
+#   - init(string, required) names the initial state of the automaton
+#   - safety(string or null, required) string representing the safety formula to prove,
+#     or null to use top-level conjectures from the ivy file
+#   - quantifiers(object, optional) key-value items (string-string) of the object specify
+#     variable names to universally quantify and their sorts
+#   - axiom(string, optional) formula to add to axioms from ivy file
+#
+# state object:
+#   - name(string, required) the name of the state, used as a unique id
+#   - edges(array of edge objects, required) lists the outgoing edges from this state
+#   - characterization(string, output only) formula giving the inferred invariant annotation in this state
+#
+# edge object:
+#   - target(string, required) name of the state that is the destination of this edge
+#   - action(string, required) name of the action that triggers this edge
+#   - precond(string, optional) formula that guards when this edge fires
+
 class AutomatonFileRepresentation(object):
     def __init__(self, filename):
         with open(filename, 'rt') as f:
