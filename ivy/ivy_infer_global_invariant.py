@@ -128,6 +128,10 @@ def tr_of_all_exported_actions():
 
 
 def infer_safe_summaries():
+    logger.info("Init: %s", global_initial_state())
+    logger.info("Safety: %s", global_safety_clauses_lst())
+    logger.info("Axioms: %s", ivy_all_axioms())
+
     init = [("inv", global_initial_state())]
     mid = [global_consecution_clause()]
     end = [global_safety_clause()]
