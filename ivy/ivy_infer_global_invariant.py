@@ -194,7 +194,5 @@ def main():
                 ivy_isolate.create_isolate(isolate, ext='ext')
                 infer_safe_summaries()
 
-    print "OK"
-
 if __name__ == "__main__":
     main()

@@ -618,8 +618,6 @@ def main():
                 check_only = (op_param.get() == 'check')
                 infer_safe_summaries(sys.argv[2], outfilename, check_only=check_only)
 
-    print "OK"
-
 
 if __name__ == "__main__":
     main()
