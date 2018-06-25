@@ -517,7 +517,7 @@ def infer_automaton(automaton, end, mid, output_filename):
     else:
         safe_frame = frame_or_cex
         end_time = datetime.datetime.now()
-        logger.info("Proof found. Time: %s", datetime.datetime.now())
+        logger.info("Proof found. Time: %s", end_time)
         logger.info("Inference time: %s", end_time - start_time)
         for state, summary in safe_frame.iteritems():
             logger.info("Summary of %s: %s", state, summary.get_summary())
