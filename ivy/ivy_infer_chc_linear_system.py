@@ -387,6 +387,8 @@ class AutomatonFileRepresentation(object):
         self.states = [s['name'] for s in self.json_data['states']]
         self.init = [(self.json_data['init'], global_initial_state())]
 
+        assert self.json_data['init'] in self.states, "Initial state %s does not exist in list of states." % self.json_data['init']
+
         if 'quantifiers' in self.json_data:
             logger.debug("Loading quantifiers...")
             load_quantifiers(self.json_data['quantifiers'])
