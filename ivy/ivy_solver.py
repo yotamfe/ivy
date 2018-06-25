@@ -1222,15 +1222,34 @@ def bound_quantifiers_clauses(h,clauses,reps):
        eqs = [ivy_logic.Equals(v,reps[c.rep]) for c in h.sort_universe(v.sort)]
        return ivy_logic.Or(*eqs)
 
+   def bind_vars_in_fmla(fmla, vs):
+       cnsts = [bdv(v) for v in vs]
+       bq_res = ivy_logic.Implies(ivy_logic.And(*cnsts), fmla) if cnsts else fmla
+       return bq_res
+
    def bq(fmla):
        """ Bound the free variables in fmla of uninterpeted sort """
        vs = list(sorted(used_variables_ast(fmla)))
        vs = [v for v in vs if not ivy_logic.is_interpreted_sort(v.sort)]
-       cnsts = [bdv(v) for v in vs]
-       bq_res = ivy_logic.Implies(ivy_logic.And(*cnsts),fmla) if cnsts else fmla
-       return bq_res
+       return bind_vars_in_fmla(fmla, vs)
 
+   def bound_quantified_occurrences(fmla):
+       assert not ivy_logic.is_exists(fmla), "Explicit existential quantification not yet supported in binding quantifiers (should be Skolemized first?)"
+       if ivy_logic.is_forall(fmla):
+           rec_on_body = bound_quantified_occurrences(fmla.body)
+           bound_body = bind_vars_in_fmla(rec_on_body, fmla.variables)
+           requantified = lg.ForAll(fmla.variables, bound_body)
+           import logging
+           logging.debug("Limiting quantified variables. Original: %s", fmla) # TODO: remove
+           logging.debug("Limiting quantified variables. Result: %s", requantified)
+           return requantified
+       else:
+           res = fmla.clone([bound_quantified_occurrences(x) for x in fmla.args])
+           return res
+
+   # TODO: what happens if the formula quantifies over variables (not consts)? Then separating the next two calls may be errornous
    new_fmlas = map(bq,clauses.fmlas)
+   new_fmlas = map(bound_quantified_occurrences, new_fmlas)
    return Clauses(fmlas=new_fmlas,defs=list(clauses.defs))
 
 def filter_redundant_facts(clauses,axioms):
@@ -1325,6 +1344,10 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
 
         # use clauses1_to_open_formula() to handle definitions with quantified variables
         clauses1_weak = bound_quantifiers_clauses(h,Clauses(fmlas=[clauses1.to_open_formula()]),reps)
+        import logging
+        logging.debug("Clauses1: %s", clauses1)
+        logging.debug("Clauses1 open: %s", Clauses(fmlas=[clauses1.to_open_formula()]))
+        logging.debug("Clauses1 weak: %s", clauses1_weak)
         res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
         assert res is not None
 #    print "clauses_model_to_diagram res = {}".format(res)
