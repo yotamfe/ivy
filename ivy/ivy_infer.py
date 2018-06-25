@@ -109,6 +109,7 @@ class PdrCexModel(object):
                                                       ignore=self._ignore_symbols, axioms=axioms)
         logger.debug("calculated diagram of bad state: %s", diagram)
         return diagram
+
     
 class PdrElements(object):
     __metaclass__ = abc.ABCMeta
@@ -203,10 +204,11 @@ def are_frames_converged(frame1, frame2):
     return True
         
 class PdrCexNode(object):
-    def __init__(self, predicate, children=None):
+    def __init__(self, predicate, obligation=None, children=None):
         super(PdrCexNode, self).__init__()
 
         self.predicate = predicate
+        self.obligation = obligation
 
         if children is None:
             children = []
@@ -260,7 +262,7 @@ def backwards_prove_at_least_one_goal(frames, current_bound,
     logger.debug("Can block by refining summaries in: %s",
                  [pred for pred, _ in summary_proof_obligations])
     
-    cex = PdrCexNode(generating_constraint)
+    cex = PdrCexNode(generating_constraint, summary_proof_obligations)
     
     for predicate, summary_proof_obligation in summary_proof_obligations:
         logger.debug("Trying to prove %s for predicate %s from frame %d", summary_proof_obligation, 

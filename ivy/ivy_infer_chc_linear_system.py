@@ -126,6 +126,7 @@ def check_action_transition(prestate_clauses, action_name, poststate_obligation)
 
             if res is not None:
                 assert len(res.states) == 2
+                logging.debug("STATES1: %s", res.states)
                 return res.states
             else:
                 return None
@@ -337,7 +338,7 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         return (updated_syms, as_single_clauses)
 
     def __repr__(self):
-        return "%s => %s => %s" % (self._lhs_pred, self._edge_action, self._rhs_pred)
+        return "Edge %s: %s => %s" % (self._edge_action, self._lhs_pred, self._rhs_pred)
 
 
 def out_edge_covering_tr_constraints(states, edges):
@@ -485,7 +486,7 @@ def infer_automaton(automaton, end, mid, output_filename):
         print "Possibly not safe! - bug or no universal invariant"
         cex = frame_or_cex
         while cex:
-            logger.info("Cex node: %s" % cex.predicate)
+            logger.info("Cex node: %s, %s", cex.predicate, cex.obligation)
             assert len(cex.children) <= 1
             if not cex.children:
                 break
