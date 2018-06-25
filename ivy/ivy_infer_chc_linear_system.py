@@ -423,7 +423,7 @@ class AutomatonFileRepresentation(object):
             state_data['characterization'] = [str(c) for c in characterization]
 
         with open(outfilename, 'wt') as outfile:
-            json.dump(new_data, outfile)
+            json.dump(new_data, outfile, sort_keys=True, indent=4)
 
     def _str_back_to_clauses(self, s):
         import re
