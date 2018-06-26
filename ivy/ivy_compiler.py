@@ -297,8 +297,8 @@ def compile_variable(self):
     with ASTContext(self):
         sort = variable_sort(self)
     if ivy_logic.is_topsort(sort):
-        sort = variable_context.map.get(self._rep(),sort)
-    return ivy_logic.Variable(self._rep(),sort)
+        sort = variable_context.map.get(self.base_name(),sort)
+    return ivy_logic.Variable(self.base_name(),sort)
 
 ivy_ast.Variable.cmpl = compile_variable
 
@@ -312,7 +312,7 @@ def cquant(q):
     return ivy_logic.ForAll if isinstance(q,ivy_ast.Forall) else ivy_logic.Exists
 
 def compile_quantifier(self):
-    bounds = [ivy_logic.Variable(v._rep(),variable_sort(v)) for v in self.bounds]
+    bounds = [ivy_logic.Variable(v.base_name(),variable_sort(v)) for v in self.bounds]
     with VariableContext(bounds):
         return cquant(self)(bounds,self.args[0].compile())
 
@@ -823,7 +823,7 @@ class IvyDomainSetup(IvyDeclInterp):
                 raise IvyError(ldf,"Variable {} occurs twice on left-hand side of definition".format(v))
         for v in lu.used_variables_ast(ldf.formula.args[1]):
             if v not in lhsvs:
-                print "v: %s %s, lhsvs: %s" % (v._rep(), v.sort, lhsvs)
+                print "v: %s %s, lhsvs: %s" % (v, v.sort, lhsvs)
                 raise IvyError(ldf,"Variable {} occurs free on right-hand side of definition".format(v))
         defs.append(ldf)
         self.last_fact = ldf

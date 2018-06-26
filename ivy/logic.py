@@ -106,15 +106,21 @@ def is_polymorphic(x):
 
 
 # Terms
-
 class Var(recstruct('Var', ['name', 'sort'], [])):
     __slots__ = ()
     @classmethod
     def _preprocess_(cls, name, sort):
+        # if is_composed_name(name):
+        #     name, _ = decompose_var_name(name)
         if name and not name[0].isupper():
             raise IvyError("Bad variable name: {!r}".format(name))
         return name + "_" + str(sort), sort
+        # return name, sort
     rep = property(lambda self: self.name)
+    # def base_name(self):
+    #     base_name, sort_in_name = decompose_var_name(self.name)
+    #     assert sort_in_name == str(self.sort)
+    #     return base_name
     def __str__(self):
         return self.rep
     def __repr__(self):
@@ -125,6 +131,15 @@ class Var(recstruct('Var', ['name', 'sort'], [])):
         return type(self) == type(other) and self.rep == other.rep # and self.sort == other.sort
     def __hash__(self):
         return hash(self.rep)
+
+def decompose_var_name(name):
+    base_name, sort_in_name = name.split('_')
+    return (base_name, sort_in_name)
+
+def is_composed_name(name):
+    return '_' in name
+
+
 
 
 class Const(recstruct('Const', ['name', 'sort'], [])):
