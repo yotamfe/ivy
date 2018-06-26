@@ -361,6 +361,27 @@ def load_axiom(axiom_str):
     import ivy_ast
     im.module.labeled_axioms.append(ivy_ast.LabeledFormula('use-defined', ivy_logic_utils.to_formula(axiom_str)))
 
+# automaton object:
+#   - name(string, optional) for documentation purposes, ignored by ivy
+#   - states(array of state objects, required) lists the states of the automaton,
+#     state objects described below
+#   - init(string, required) names the initial state of the automaton
+#   - safety(string or null, required) string representing the safety formula to prove,
+#     or null to use top-level conjectures from the ivy file
+#   - quantifiers(object, optional) key-value items (string-string) of the object specify
+#     variable names to universally quantify and their sorts
+#   - axiom(string, optional) formula to add to axioms from ivy file
+#
+# state object:
+#   - name(string, required) the name of the state, used as a unique id
+#   - edges(array of edge objects, required) lists the outgoing edges from this state
+#   - characterization(string, output only) formula giving the inferred invariant annotation in this state
+#
+# edge object:
+#   - target(string, required) name of the state that is the destination of this edge
+#   - action(string, required) name of the action that triggers this edge
+#   - precond(string, optional) formula that guards when this edge fires
+
 class AutomatonFileRepresentation(object):
     def __init__(self, filename):
         with open(filename, 'rt') as f:
@@ -369,6 +390,8 @@ class AutomatonFileRepresentation(object):
 
         self.states = [s['name'] for s in self.json_data['states']]
         self.init = [(self.json_data['init'], global_initial_state())]
+
+        assert self.json_data['init'] in self.states, "Initial state %s does not exist in list of states." % self.json_data['init']
 
         if 'quantifiers' in self.json_data:
             logger.debug("Loading quantifiers...")
@@ -406,7 +429,7 @@ class AutomatonFileRepresentation(object):
             state_data['characterization'] = [str(c) for c in characterization]
 
         with open(outfilename, 'wt') as outfile:
-            json.dump(new_data, outfile)
+            json.dump(new_data, outfile, sort_keys=True, indent=4)
 
     def _str_back_to_clauses(self, s):
         import re
@@ -499,7 +522,7 @@ def infer_automaton(automaton, end, mid, output_filename):
     else:
         safe_frame = frame_or_cex
         end_time = datetime.datetime.now()
-        logger.info("Proof found. Time: %s", datetime.datetime.now())
+        logger.info("Proof found. Time: %s", end_time)
         logger.info("Inference time: %s", end_time - start_time)
         for state, summary in safe_frame.iteritems():
             logger.info("Summary of %s: %s", state, summary.get_summary())

@@ -136,6 +136,9 @@ def infer_safe_summaries():
     mid = [global_consecution_clause()]
     end = [global_safety_clause()]
 
+    start_time = datetime.datetime.now()
+    logger.info("Starting inference. Time: %s", start_time)
+
     pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(["inv"], init, mid, end,
                                                              ivy_infer_universal.UnivGeneralizer(),
                                                              ivy_all_axioms())
@@ -144,8 +147,12 @@ def infer_safe_summaries():
         print "Possibly not safe! - bug or no universal invariant"
     else:
         safe_frame = frame_or_cex
+        inference_end_time = datetime.datetime.now()
+        logger.info("Proof found. Time: %s", inference_end_time)
+        logger.info("Inference time: %s", inference_end_time - start_time)
+
         invariant = safe_frame["inv"].get_summary()
-        logger.info("Invariant: %s. Time: %s", invariant, datetime.datetime.now())
+        logger.info("Invariant: %s. Time: %s", invariant, inference_end_time)
         logger.info("Invariant as a single formula: %s", invariant.to_single_clauses())
         assert global_safety_clause().check_satisfaction(safe_frame) is None
 
@@ -160,6 +167,10 @@ def infer_safe_summaries():
 
         invariant_reduced = minimize_invariant(invariant_reduced_equiv,
                                                lambda candidate_lst, omitted: check_inductive_invariant(candidate_lst))
+        reduced_end_time = datetime.datetime.now()
+        logger.info("Invariant reduction time: %s", reduced_end_time - inference_end_time)
+        logger.info("Time: %s", reduced_end_time)
+
         print "Invariant reduced:", invariant_reduced
 
 
