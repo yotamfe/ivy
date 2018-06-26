@@ -260,11 +260,11 @@ def backwards_prove_at_least_one_goal(frames, current_bound,
                                       summary_proof_obligations, pdr_elements,
                                       generating_constraint):
     logger.debug("Can block by refining summaries in: %s",
-                 [pred for pred, _ in summary_proof_obligations])
+                 [pred for pred, _, _ in summary_proof_obligations])
     
     cex = PdrCexNode(generating_constraint, summary_proof_obligations)
     
-    for predicate, summary_proof_obligation in summary_proof_obligations:
+    for predicate, summary_proof_obligation, _ in summary_proof_obligations:
         logger.debug("Trying to prove %s for predicate %s from frame %d", summary_proof_obligation, 
                                                                           predicate,
                                                                           current_bound)

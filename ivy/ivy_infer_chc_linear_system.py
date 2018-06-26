@@ -202,7 +202,8 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
             if bad_inv_model is None:
                 continue
 
-            return ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses())
+            return (ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses()),
+                    conjecture)
 
         return None
 
@@ -260,7 +261,8 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
                          [edge.get_precondition() for edge in matching_edges],
                          action_check_covered)
 
-            return ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True)
+            return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True),
+                    action_check_covered)
 
         return None
 

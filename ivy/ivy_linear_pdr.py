@@ -169,18 +169,19 @@ class LinearPdr(ivy_infer.PdrElements):
     def check_summary_safety(self, summaries, prev_summaries=None, current_bound=None):
         proof_obligations = []
         for safety_constraint in self._end_chc:
-            bad_model = safety_constraint.check_satisfaction(summaries)
-            if bad_model is None:
+            safety_res = safety_constraint.check_satisfaction(summaries)
+            if safety_res is None:
                 logger.debug("%s is satisfied" % str(safety_constraint))
                 # TODO: does it make sense here, pushing might eliminate some cexs previously obtained..
                 if prev_summaries is not None:
                     self._push_to_other_preds(safety_constraint.lhs_pred(), prev_summaries, summaries, current_bound)
                 continue
 
+            bad_model, extra_info = safety_res
             logger.debug("Counterexample to %s", str(safety_constraint))
             proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model)
             proof_obligations.append((safety_constraint,
-                                      [(safety_constraint.lhs_pred(), proof_obligation)]))
+                                      [(safety_constraint.lhs_pred(), proof_obligation, extra_info)]))
 
         return proof_obligations
 
@@ -234,11 +235,10 @@ class LinearPdr(ivy_infer.PdrElements):
         causing_constraint = transformers[causing_constraint_idx]
         pre_pred = causing_constraint.lhs_pred()
 
-        # ############# TODO: remove
-        bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation)) # TODO: remove
+        bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation))
         assert bad_model_lhs is not None
-        # #############
 
+        # TODO: would have like this to work to eliminate an unecessary Z3 call, but I can't
         # causing_updated_syms, causing_transform_clauses = causing_constraint.transformability_update(summaries_by_symbol,
         #                                                                                              ivy_transrel.new)
         # rhs_in_new_for_causing = forward_clauses(rhs, causing_updated_syms)
@@ -249,14 +249,10 @@ class LinearPdr(ivy_infer.PdrElements):
         #                                       project_pre=True)
 
         proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
-        # ############# TODO: remove
-        # bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation)) # TODO: remove
-        # assert bad_model_lhs is not None
-        # #############
         logging.debug("Proof obligation: %s", proof_obligation)
 
         logger.debug("Check transformability returned proof obligation: %s", [(causing_constraint, [(pre_pred, proof_obligation)])])
-        return [(causing_constraint, [(pre_pred, proof_obligation)])]
+        return [(causing_constraint, [(pre_pred, proof_obligation, causing_constraint)])]
 
     def mark_reachable(self, predicate, summary_proof_obligation,
                        summaries, cex_info):
@@ -274,6 +270,7 @@ class LinearPdr(ivy_infer.PdrElements):
 
         logger.debug("GEN0: %s", all_updated_syms)
         logger.debug("GEN0.1: %s", rhs_in_new)
+        logger.debug("Trans0: %s", all_transformability_combined)
         logger.debug("Trans: %s, check lemma: %s" % (all_transformability_combined, rhs_in_new))
         # TODO: use forward_interpolant or forward_image_map instead?
         res = ivy_transrel.interpolant(all_transformability_combined,
@@ -330,6 +327,7 @@ class LinearPdr(ivy_infer.PdrElements):
                                                       im.module.relations, ivy_transrel.new)
             clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
             transformability_clauses_unified.append(clauses)
+
         # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
         all_transformability_combined = ivy_logic_utils.tagged_or_clauses('__edge', *transformability_clauses_unified)
         # all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
