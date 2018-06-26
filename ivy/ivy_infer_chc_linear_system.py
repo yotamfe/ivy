@@ -197,7 +197,7 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         for conjecture in self._safey_clauses_lst:
             bad_clauses = ivy_logic_utils.dual_clauses(conjecture)
-            inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses])
+            inv_but_bad_clauses = ClausesClauses(inv_summary.get_conjuncts_clauses_list() + [bad_clauses] + [ivy_all_axioms()])
             bad_inv_model = inv_but_bad_clauses.get_model()
             if bad_inv_model is None:
                 continue
@@ -249,7 +249,8 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
             (_, tr_action, _) = action_update(im.module.actions[action_check_covered])
             vc = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
                                 [tr_action] +
-                                [ivy_logic_utils.dual_clauses(edge.get_precondition()) for edge in matching_edges])
+                                [ivy_logic_utils.dual_clauses(edge.get_precondition()) for edge in matching_edges] +
+                                [ivy_all_axioms()])
 
             cex = vc.get_model()
             if cex is None:
@@ -294,30 +295,31 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         return ivy_infer.PdrCexModel(None, prestate.clauses)
 
     def generalize_intransformability(self, prestate_summaries, lemma):
-        import ivy_transrel
-        from ivy_logic_utils import and_clauses
-        from ivy_interp import State
-
-        (edge_action_name, precond) = (self._edge_action)
-
-        prestate_clauses = prestate_summaries[self._lhs_pred].get_summary()
-
-        # relying on isolate context created earlier
-        ag = ivy_art.AnalysisGraph()
-
-        pre = State()
-        pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list() + [precond])
-
-        action = im.module.actions[edge_action_name]
-
-        post = ivy_logic_utils.dual_clauses(lemma)
-
-        axioms = ivy_all_axioms()
-        NO_INTERPRETED = None
-        res = ivy_transrel.forward_interpolant(pre.clauses, action.update(ag.domain, pre.in_scope), post, axioms,
-                                               NO_INTERPRETED)
-        assert res != None
-        return res[1]
+        raise Exception("Obsolete, see transformability_update")
+        # import ivy_transrel
+        # from ivy_logic_utils import and_clauses
+        # from ivy_interp import State
+        #
+        # (edge_action_name, precond) = (self._edge_action)
+        #
+        # prestate_clauses = prestate_summaries[self._lhs_pred].get_summary()
+        #
+        # # relying on isolate context created earlier
+        # ag = ivy_art.AnalysisGraph()
+        #
+        # pre = State()
+        # pre.clauses = and_clauses(*prestate_clauses.get_conjuncts_clauses_list() + [precond])
+        #
+        # action = im.module.actions[edge_action_name]
+        #
+        # post = ivy_logic_utils.dual_clauses(lemma)
+        #
+        # axioms = ivy_all_axioms()
+        # NO_INTERPRETED = None
+        # res = ivy_transrel.forward_interpolant(pre.clauses, action.update(ag.domain, pre.in_scope), post, axioms,
+        #                                        NO_INTERPRETED)
+        # assert res != None
+        # return res[1]
 
     def transformability_update(self, summaries_by_pred, rhs_vocab):
         assert rhs_vocab == ivy_transrel.new, "Caller expects vocabulary unexpected for the constraint"
@@ -437,6 +439,7 @@ def infer_safe_summaries(automaton_filename, output_filename=None, check_only=Tr
     logger.debug("Init: %s", automaton.init)
     logger.debug("Edges: %s", automaton.edges)
     logger.debug("Safety: %s", automaton.safety_clauses_lst)
+    logger.debug("Axioms: %s", ivy_all_axioms())
 
     mid = [SummaryPostSummaryClause(s1, (action_name, precond), s2) for (s1, s2, action_name, precond) in automaton.edges]
     end_state_safety = [SafetyOfStateClause(s, automaton.safety_clauses_lst) for s in automaton.states]
