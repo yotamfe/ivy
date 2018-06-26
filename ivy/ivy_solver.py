@@ -679,6 +679,7 @@ class HerbrandModel(object):
             a table in the format (vars,rows), where each row is a tuple of values of the
             variables in vars.
         """
+        import logging
         vs = list(variables_ast(fmla))
         s = self.solver
         m = self.model
@@ -687,14 +688,30 @@ class HerbrandModel(object):
 #        print "z3_fmla = {}".format(z3_fmla)
         z3_vs = [term_to_z3(v) for v in vs]
         insts = []
+        logging.debug("CHECK0: %s", m) # TODO: remove
+        logging.debug("CHECK1: %s", fmla)
         for tup in itertools.product(*ranges):
             interp = zip(z3_vs,tup)
             fact = substitute(z3_fmla,*interp)
+
             fact_val = m.eval(fact,model_completion=True)
 #            print "%s = %s" % (fact,fact_val)
+            logging.debug("CHECK2: %s, %s", fact, fact_val)
             if z3.is_true(fact_val):
                 args = [constant_from_z3(v.sort,y) for v,y in zip(vs,tup)]
                 insts.append(args)
+            elif not z3.is_false(fact_val):
+                logging.debug("Z3 eval returning expression: %s", fact_val)
+                # trying to overcome this by checking whether it is valid regardless of the model
+                # (happened on Paxos with the result ForAll(N:Node, True))
+                s = z3.Solver()
+                s.add(z3.Not(fact_val))
+                if s.check() == z3.unsat:
+                    import logging
+                    logging.debug("Circumventing Z3 eval returning expression: %s", fact_val)
+                    args = [constant_from_z3(v.sort, y) for v, y in zip(vs, tup)]
+                    insts.append(args)
+
         return (vs,insts)
 
     def eval(self,fmla):
@@ -1095,6 +1112,8 @@ def get_small_model(clauses, sorts_to_minimize, relations_to_minimize, final_con
                     s.pop()
         # print "done"
     m = get_model(s)
+    import logging
+    logging.debug("HModel1: %s", str(m))
 #    print "model = {}".format(m)
 #    f = open("ivy.smt2","w")
 #    f.write(s.to_smt2())
@@ -1194,6 +1213,11 @@ def clauses_model_to_clauses(clauses1,ignore = None, implied = None,model = None
     h = model_if_none(clauses1,implied,model)
     ignore = ignore if ignore is not None else lambda x: False
     res = model_facts(h,ignore,clauses1)
+    import logging
+    logging.debug("Model0: %s", res)
+    logging.debug("Model1: %s", clauses1) # TODO: contains choosable
+    logging.debug("Model2: %s", h)
+
 #    print "core after mode_facts: {} ".format(unsat_core(res,true_clauses()))
     # if using numerals, replace the universe elements with them
     if numerals:
@@ -1222,7 +1246,7 @@ def bound_quantifiers_clauses(h,clauses,reps):
        eqs = [ivy_logic.Equals(v,reps[c.rep]) for c in h.sort_universe(v.sort)]
        return ivy_logic.Or(*eqs)
 
-   def bind_vars_in_fmla(fmla, vs):
+   def bound_vars_in_fmla(fmla, vs):
        cnsts = [bdv(v) for v in vs]
        bq_res = ivy_logic.Implies(ivy_logic.And(*cnsts), fmla) if cnsts else fmla
        return bq_res
@@ -1231,13 +1255,13 @@ def bound_quantifiers_clauses(h,clauses,reps):
        """ Bound the free variables in fmla of uninterpeted sort """
        vs = list(sorted(used_variables_ast(fmla)))
        vs = [v for v in vs if not ivy_logic.is_interpreted_sort(v.sort)]
-       return bind_vars_in_fmla(fmla, vs)
+       return bound_vars_in_fmla(fmla, vs)
 
    def bound_quantified_occurrences(fmla):
        assert not ivy_logic.is_exists(fmla), "Explicit existential quantification not yet supported in binding quantifiers (should be Skolemized first?)"
        if ivy_logic.is_forall(fmla):
            rec_on_body = bound_quantified_occurrences(fmla.body)
-           bound_body = bind_vars_in_fmla(rec_on_body, fmla.variables)
+           bound_body = bound_vars_in_fmla(rec_on_body, fmla.variables)
            requantified = lg.ForAll(fmla.variables, bound_body)
            import logging
            logging.debug("Limiting quantified variables. Original: %s", fmla) # TODO: remove
@@ -1348,6 +1372,8 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
         logging.debug("Clauses1: %s", clauses1)
         logging.debug("Clauses1 open: %s", Clauses(fmlas=[clauses1.to_open_formula()]))
         logging.debug("Clauses1 weak: %s", clauses1_weak)
+        logging.debug("Clauses1 facts: %s", res)
+        logging.debug("Clauses1 axioms: %s", axioms)
         res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
         assert res is not None
 #    print "clauses_model_to_diagram res = {}".format(res)
@@ -1362,13 +1388,19 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
     res = Clauses([cl for cl in res.fmlas if not any(ign(c) for c in used_symbols_ast(cl))])
     res = filter_redundant_facts(res, axioms)
 #    print "clauses_model_to_diagram res = {}".format(res)
+#     logging.debug("Diagram: %s", res)
+#     if 'member' in str(res):
+#         assert False
     return res
 
 def relation_model_to_clauses(h,r,n):
     lit = ivy_logic.Literal(1,rel_inst(r))
+    import logging
+    logging.debug("LIT1: %s, %s", r, lit)
     res = []
     get_lit_facts(h,lit,res)
     get_lit_facts(h,~lit,res)
+    logging.debug("LIT2: %s, %s, %s", r, lit, res) # TODO: no choosable interpretation in model!
     return res
 #    pos = h.ground_instances(lit)
 #    neg = h.ground_instances(~lit)
