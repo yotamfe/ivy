@@ -152,7 +152,8 @@ def infer_safe_summaries():
         logger.info("Inference time: %s", inference_end_time - start_time)
 
         invariant = safe_frame["inv"].get_summary()
-        logger.info("Invariant: %s. Time: %s", invariant, inference_end_time)
+        logger.info("Invariant: %s.", invariant)
+        logger.info("Time: %s", inference_end_time)
         logger.info("Invariant as a single formula: %s", invariant.to_single_clauses())
         assert global_safety_clause().check_satisfaction(safe_frame) is None
 
