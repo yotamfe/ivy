@@ -377,7 +377,7 @@ def load_axiom(axiom_str):
 # state object:
 #   - name(string, required) the name of the state, used as a unique id
 #   - edges(array of edge objects, required) lists the outgoing edges from this state
-#   - characterization(string, output only) formula giving the inferred invariant annotation in this state
+#   - characterization(list of strings, output only) formulas giving the invariant annotation for this state
 #
 # edge object:
 #   - target(string, required) name of the state that is the destination of this edge
