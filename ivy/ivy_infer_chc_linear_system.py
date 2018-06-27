@@ -403,8 +403,13 @@ class AutomatonFileRepresentation(object):
 
         self.edges = []
         for s in self.json_data['states']:
+            assert s['name'] != 'self', "states may not be named 'self'"
+
             for e in s['edges']:
                 target = e['target']
+                if target == 'self':
+                    target = s['name']
+                assert target in self.states, "Target state %s does not exist in list of states" % target
                 action = e['action']
                 if 'precond' in e:
                     logger.debug("Loading edge %s", e['precond'])
