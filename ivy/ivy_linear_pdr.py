@@ -188,7 +188,8 @@ class LinearPdr(ivy_infer.PdrElements):
     def check_intransformability_to_violation_bool_res(self, predicate, summaries_by_symbol, proof_obligation):
         # return not self.check_transformability_to_violation(predicate, summaries_by_symbol, proof_obligation)
 
-        all_transformability_combined, all_updated_syms, _ = self._unified_transformability_update(predicate, summaries_by_symbol)
+        all_transformability_combined_and_map, all_updated_syms, _ = self._unified_transformability_update(predicate, summaries_by_symbol)
+        all_transformability_combined, _ = all_transformability_combined_and_map
 
         rhs = ivy_logic_utils.dual_clauses(proof_obligation)
         rhs_in_new = forward_clauses(rhs, all_updated_syms)
@@ -219,8 +220,9 @@ class LinearPdr(ivy_infer.PdrElements):
         #
         # return proof_obligations
 
-        all_transformability_combined, all_updated_syms, transformers = self._unified_transformability_update(predicate,
+        all_transformability_combined_and_map, all_updated_syms, transformers = self._unified_transformability_update(predicate,
                                                                                                               summaries_by_symbol)
+        all_transformability_combined, transformers_map = all_transformability_combined_and_map
 
         rhs = ivy_logic_utils.dual_clauses(proof_obligation)
         rhs_in_new = forward_clauses(rhs, all_updated_syms)
@@ -230,13 +232,35 @@ class LinearPdr(ivy_infer.PdrElements):
         if cex is None:
             return []
 
-        causing_constraint_idx = ivy_logic_utils.find_true_disjunct(all_transformability_combined,
-                                                                    cex.eval)
-        causing_constraint = transformers[causing_constraint_idx]
+        causing_constraint_idx = ivy_logic_utils.find_true_disjunct_with_mapping_var(all_transformability_combined,
+                                                                                     cex.eval)
+        # causing_constraint = transformers[causing_constraint_idx]
+        causing_constraint = transformers_map[causing_constraint_idx]
         pre_pred = causing_constraint.lhs_pred()
 
         bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation))
         assert bad_model_lhs is not None
+        if bad_model_lhs is None:
+            logger.info("Pred: %s", predicate)
+            logger.info("Proof obligation: %s", proof_obligation)
+            logger.info("Causing constraint: %s", causing_constraint)
+            logger.info("Transformability combined: %s", all_transformability_combined)
+            logger.info("Cex: %s", cex)
+            for constraint in transformers:
+                logger.info("Check constraint: %s, result: %s",
+                            constraint,
+                            constraint.check_transformability(summaries_by_symbol,
+                                                              ivy_logic_utils.dual_clauses(proof_obligation)))
+                transformability_clauses = constraint.transformability_update(summaries_by_symbol, ivy_transrel.new)
+                (updated_syms, clauses) = transformability_clauses
+                unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
+                                                          im.module.relations, ivy_transrel.new)
+                clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
+                logger.info("Matching transformability clauses: %s", clauses)
+
+            logger.info("Tags:")
+            for idx,atom in enumerate(all_transformability_combined.fmlas[0].args):
+                logger.info("Tag %s val %s", atom, cex.eval(atom))
 
         # TODO: would have like this to work to eliminate an unecessary Z3 call, but I can't
         # causing_updated_syms, causing_transform_clauses = causing_constraint.transformability_update(summaries_by_symbol,
@@ -263,7 +287,8 @@ class LinearPdr(ivy_infer.PdrElements):
         return False, None
 
     def generalize_intransformability(self, predicate, prestate_summaries, lemma):
-        all_transformability_combined, all_updated_syms, _ = self._unified_transformability_update(predicate, prestate_summaries)
+        all_transformability_combined_and_map, all_updated_syms, _ = self._unified_transformability_update(predicate, prestate_summaries)
+        all_transformability_combined, _ = all_transformability_combined_and_map
 
         rhs = ivy_logic_utils.dual_clauses(lemma)
         rhs_in_new = forward_clauses(rhs, all_updated_syms)
@@ -329,6 +354,8 @@ class LinearPdr(ivy_infer.PdrElements):
             transformability_clauses_unified.append(clauses)
 
         # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
-        all_transformability_combined = ivy_logic_utils.tagged_or_clauses('__edge', *transformability_clauses_unified)
+        all_transformability_combined, disjunct_map_clauses = ivy_logic_utils.tagged_or_clauses_with_mapping('__edge', *transformability_clauses_unified)
+        from_clauses_to_transforer = {clauses: transformer for (clauses, transformer) in zip(transformability_clauses_unified, transformers)}
+        disjunct_map = {v: from_clauses_to_transforer[v_clauses] for (v, v_clauses) in disjunct_map_clauses.iteritems()}
         # all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
-        return all_transformability_combined, all_updated_syms, transformers
+        return (all_transformability_combined, disjunct_map), all_updated_syms, transformers

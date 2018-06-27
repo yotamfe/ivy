@@ -1317,6 +1317,30 @@ def or_clauses_int(rn,args):
     #    print "or_clauses_int res = {}".format(res)
     return res,vs
 
+def or_clauses_int_map_vars(rn,args):
+#    print "or_clauses_int: args = {}".format(args)
+    # TODO: this changes the args and it's hard to keep track of them for vs_map (for the sake of tagged_or_clauses)
+    # TODO: without this does it hurt performance?
+    #### args = elim_dead_definitions(rn,args)
+#    print "or_clauses_int: args = {}".format(args)
+    vs = [bool_const(rn()) for a in args]
+    fmlas = ([Or(*vs)]
+               + [Or(Not(v),cl) for cls,v in zip(args,vs) for cl in cls.fmlas])
+    defidx = dict()
+    vs_map = {v: cls for (cls,v) in zip(args,vs)}
+    for v,cls in vs_map.iteritems():
+        for d in cls.defs:
+            s = d.defines()
+            if s not in defidx:
+                defidx[s] = d
+            else:
+                defidx[s] = Definition(d.args[0],Ite(v,d.args[1],defidx[s].args[1]))
+    defs = [d for n,d in defidx.iteritems()] # TODO: hash traversal dependency
+    res = Clauses(fmlas,defs)
+    #    print "or_clauses_int res = {}".format(res)
+    return res,vs,vs_map
+
+
 def debug_clauses_list(cl):
     for clauses in cl:
         print "definitions:"
@@ -1367,6 +1391,16 @@ def tagged_or_clauses(prefix,*args):
     res,vs = or_clauses_int(UniqueRenamer('__to0',dict()),args)
     return fix_or_annot(res,vs,args)
 
+def tagged_or_clauses_with_mapping(prefix,*args):
+    """Same as or_clauses, but gives each disjunct a unique "tag" predicate
+    that can be used to determine which disjunct is true in a model. The tag
+    predicate symbols begin with "prefix". See find_true_disjunct.
+    """
+    args = coerce_args_to_clauses(args)
+    res,vs,vs_map = or_clauses_int_map_vars(UniqueRenamer('__to0',dict()),args)
+    return fix_or_annot(res,vs,args), vs_map
+
+
 def find_true_disjunct(clauses,eval_fun):
     """See tagged_or_clauses. If a tagged disjunction is satisfiable,
     return the index of some true disjunct. Here, "eval_fun" returns the
@@ -1381,6 +1415,22 @@ def find_true_disjunct(clauses,eval_fun):
         if eval_fun(atom):
             return idx
     return None
+
+def find_true_disjunct_with_mapping_var(clauses,eval_fun):
+    """See tagged_or_clauses. If a tagged disjunction is satisfiable,
+    return the index of some true disjunct. Here, "eval_fun" returns the
+    truth value of a predicate symbol in the satisfying assignment.
+    We assume fmla is the result of tagged_or_clauses. Returns None if
+    no disjunct is true.
+
+    TODO: this is done by linear search, but could be binary search if
+    tagged_or_clauses is implement appropriately.
+    """
+    for idx,atom in enumerate(clauses.fmlas[0].args):
+        if eval_fun(atom):
+            return atom
+    return None
+
 
 
 #    return reduce(or_clauses2,args)
@@ -1474,6 +1524,7 @@ def definition_instances(fmla):
     return Clauses([])
 
 def unfold_definitions_clauses(clauses):
+    # TODO: something here about derived relations?
     if instantiator != None:
         gts = ground_apps_clauses(clauses)
         insts = instantiator(gts)
