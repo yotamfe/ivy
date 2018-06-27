@@ -617,20 +617,21 @@ def infer_with_automaton():
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
-
     import signal
     # signal.signal(signal.SIGINT, signal.SIG_DFL)
     import ivy_alpha
     ivy_alpha.test_bottom = False  # this prevents a useless SAT check
     import tk_ui as ui
     op_param = iu.Parameter('op', 'infer')
+    log_param = iu.BooleanParameter('log', 'true')
     iu.set_parameters({'mode': 'induction'})
 
     ivy_init.read_params()
     if len(sys.argv) not in [3, 4] or not sys.argv[1].endswith('ivy'):
         print "usage: \n  {} file.ivy automaton_in.json [automaton_out.json]".format(sys.argv[0])
         sys.exit(1)
+
+    logging.basicConfig(level=logging.DEBUG if log_param.get() else logging.INFO)
 
     with im.Module():
         with utl.ErrorPrinter():

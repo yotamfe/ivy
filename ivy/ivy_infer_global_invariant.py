@@ -179,18 +179,20 @@ def usage():
     sys.exit(1)
         
 def main():
-    logging.basicConfig(level=logging.DEBUG)
-
     import signal
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     import ivy_alpha
     ivy_alpha.test_bottom = False  # this prevents a useless SAT check
     import tk_ui as ui
     iu.set_parameters({'mode': 'induction'})
+    log_param = iu.BooleanParameter('log', 'true')
 
     ivy_init.read_params()
     if len(sys.argv) != 2 or not sys.argv[1].endswith('ivy'):
         usage()
+
+    logging.basicConfig(level=logging.DEBUG if log_param.get() else logging.INFO)
+
     with im.Module():
         with utl.ErrorPrinter():
             ivy_init.source_file(sys.argv[1], ivy_init.open_read(sys.argv[1]), create_isolate=False)
