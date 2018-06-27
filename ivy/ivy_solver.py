@@ -508,6 +508,8 @@ def unsat_core(clauses1, clauses2, implies = None, unlikely=lambda x:False):
     is_sat = s2.check(alits)
     if is_sat == z3.sat:
 #        print "unsat_core model = {}".format(get_model(s2))
+        import logging
+        logging.debug("UNSATCORE1: %s", s2.model())
         return None
     if unlikely_lits:
         core = biased_core(s2,alits,unlikely_lits)
@@ -1232,6 +1234,13 @@ def clauses_model_to_clauses(clauses1,ignore = None, implied = None,model = None
 #    print "clauses_model_to_clauses res = {}".format(res)
     return res
 
+def bound_variable_to_model_domain(v, h, reps):
+    """ Return a formula bounding a variable of ubninterpreted sort """
+    if v.sort == lg.BooleanSort():
+        return lg.true  # No need to bound (I think, YF)
+    eqs = [ivy_logic.Equals(v, reps[c.rep]) for c in h.sort_universe(v.sort)]
+    return ivy_logic.Or(*eqs)
+
 def bound_quantifiers_clauses(h,clauses,reps):
    """ Bound the universal quantifiers in "clauses" to just the terms in
        Herbrand model h. This applies only to quantifiers in the constraints of
@@ -1240,11 +1249,7 @@ def bound_quantifiers_clauses(h,clauses,reps):
    # TODO: doesn't work correctly for bound variables (by universal quantifiers), as bq ignores the location of the quantifier
 
    def bdv(v):
-       """ Return a formula bounding a variable of ubninterpreted sort """
-       if v.sort == lg.BooleanSort():
-           return lg.true # No need to bound (I think, YF)
-       eqs = [ivy_logic.Equals(v,reps[c.rep]) for c in h.sort_universe(v.sort)]
-       return ivy_logic.Or(*eqs)
+       return bound_variable_to_model_domain(v, h, reps)
 
    def bound_vars_in_fmla(fmla, vs):
        cnsts = [bdv(v) for v in vs]
@@ -1303,6 +1308,10 @@ def filter_redundant_facts(clauses,axioms):
     return Clauses(pos_fmlas+keep,list(clauses.defs))
 
 
+def restrict_sort_formula(sort, h, reps):
+    var = lg.Var('V' + str(sort), sort)
+    body = bound_variable_to_model_domain(var, h, reps)
+    return lg.ForAll([var], body)
 
 
 def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None,axioms=None,weaken=True,numerals=True):
@@ -1374,7 +1383,11 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
         logging.debug("Clauses1 weak: %s", clauses1_weak)
         logging.debug("Clauses1 facts: %s", res)
         logging.debug("Clauses1 axioms: %s", axioms)
-        res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
+        logging.debug("Clauses1 reps: %s", reps)
+        restrict_domain = Clauses(fmlas=[restrict_sort_formula(s, h, reps) for s in h.sorts()])
+        logging.debug("Clauses1 restrict domain: %s", restrict_domain)
+        # res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
+        res = unsat_core(res, and_clauses(restrict_domain, axioms), clauses1, unlikely=unlikely)  # implied not used here
         assert res is not None
 #    print "clauses_model_to_diagram res = {}".format(res)
 
