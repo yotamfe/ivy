@@ -1375,18 +1375,14 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
             # remove if possible the =constant predicates
             return ivy_logic.is_eq(fmla) and ivy_logic.is_constant(fmla.args[0])
 
-        # use clauses1_to_open_formula() to handle definitions with quantified variables
-        clauses1_weak = bound_quantifiers_clauses(h,Clauses(fmlas=[clauses1.to_open_formula()]),reps)
+        # clauses1_weak = bound_quantifiers_clauses(h,Clauses(fmlas=[clauses1.to_open_formula()]),reps)
+        # res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
         import logging
         logging.debug("Clauses1: %s", clauses1)
-        logging.debug("Clauses1 open: %s", Clauses(fmlas=[clauses1.to_open_formula()]))
-        logging.debug("Clauses1 weak: %s", clauses1_weak)
-        logging.debug("Clauses1 facts: %s", res)
         logging.debug("Clauses1 axioms: %s", axioms)
         logging.debug("Clauses1 reps: %s", reps)
         restrict_domain = Clauses(fmlas=[restrict_sort_formula(s, h, reps) for s in h.sorts()])
         logging.debug("Clauses1 restrict domain: %s", restrict_domain)
-        # res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
         res = unsat_core(res, and_clauses(restrict_domain, axioms), clauses1, unlikely=unlikely)  # implied not used here
         assert res is not None
 #    print "clauses_model_to_diagram res = {}".format(res)
