@@ -97,6 +97,9 @@ class LinearMiddleConstraint(LinearTransformabilityHornClause):
     def transformability_update(self, summaries_by_pred, rhs_vocab):
         pass
 
+def heuristic_precedence_backwards_search_constraints(constraints_lst):
+    return sorted(constraints_lst, key=lambda mid_chc: mid_chc.lhs_pred() != mid_chc.rhs_pred(), reverse=True)
+
 class LinearPdr(ivy_infer.PdrElements):
     def __init__(self, preds, init_chc_lst, mid_chc_lst, end_chc_lst, generalizer, axioms):
         super(LinearPdr, self).__init__(generalizer)
@@ -232,10 +235,12 @@ class LinearPdr(ivy_infer.PdrElements):
         if cex is None:
             return []
 
-        causing_constraint_idx = ivy_logic_utils.find_true_disjunct_with_mapping_var(all_transformability_combined,
+        causing_constraints_idx = ivy_logic_utils.find_all_true_disjuncts_with_mapping_var(all_transformability_combined,
                                                                                      cex.eval)
         # causing_constraint = transformers[causing_constraint_idx]
-        causing_constraint = transformers_map[causing_constraint_idx]
+        causing_constraints = [transformers_map[idx] for idx in causing_constraints_idx]
+        causing_constraints = heuristic_precedence_backwards_search_constraints(causing_constraints)
+        causing_constraint = causing_constraints[0]
         pre_pred = causing_constraint.lhs_pred()
 
         bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation))
