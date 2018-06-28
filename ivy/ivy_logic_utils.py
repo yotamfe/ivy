@@ -1416,7 +1416,7 @@ def find_true_disjunct(clauses,eval_fun):
             return idx
     return None
 
-def find_true_disjunct_with_mapping_var(clauses,eval_fun):
+def find_true_disjunct_with_mapping_var(clauses,atoms_ordered,eval_fun):
     """See tagged_or_clauses. If a tagged disjunction is satisfiable,
     return the index of some true disjunct. Here, "eval_fun" returns the
     truth value of a predicate symbol in the satisfying assignment.
@@ -1426,10 +1426,17 @@ def find_true_disjunct_with_mapping_var(clauses,eval_fun):
     TODO: this is done by linear search, but could be binary search if
     tagged_or_clauses is implement appropriately.
     """
-    for idx,atom in enumerate(clauses.fmlas[0].args):
+    for idx,atom in enumerate(atoms_ordered):
         if eval_fun(atom):
             return atom
     return None
+
+def find_all_true_disjuncts_with_mapping_var(clauses,eval_fun):
+    res = []
+    for idx,atom in enumerate(clauses.fmlas[0].args):
+        if eval_fun(atom):
+            res.append(atom)
+    return res
 
 
 
