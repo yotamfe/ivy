@@ -235,6 +235,18 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
         for out_edge in self._out_edges_actions:
             assert out_edge.get_action_name() in checked_wrt_to_actions, "%s not known from %s" % (out_edge.get_action_name(), checked_wrt_to_actions)
 
+        self._cover_obligations = []
+        for action_check_covered in checked_wrt_to_actions:
+            matching_edges = filter(lambda edge: edge.get_action_name() == action_check_covered, self._out_edges_actions)
+            if any(edge.get_precondition().is_true() for edge in matching_edges):
+                continue # covering this action is guaranteed
+
+            (_, tr_action, _) = action_update(im.module.actions[action_check_covered])
+            self._cover_obligations.append((action_check_covered,
+                                            tr_action,
+                                            [ivy_logic_utils.dual_clauses(edge.get_precondition()) for edge in matching_edges]))
+
+
     def full_tr_list_actions(self):
         # excluding the action representing the disjunction of all actions
         return filter(lambda action_name: action_name != 'ext', im.module.public_actions)
@@ -242,24 +254,20 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
     def check_satisfaction(self, summaries_by_pred):
         logging.debug("Check edge covering: all exported %s, is covered by %s", self.full_tr_list_actions(), self._out_edges_actions)
 
-        for action_check_covered in self.full_tr_list_actions():
-            matching_edges = filter(lambda edge: edge.get_action_name() == action_check_covered, self._out_edges_actions)
-            # accumulated_pre = ivy_logic_utils.or_clauses(*(edge.get_precondition() for edge in matching_edges)).epr_closed()
-
-            # check: I_s /\ TR[action] => \/ accumulated_pre
-            (_, tr_action, _) = action_update(im.module.actions[action_check_covered])
+        for action_check_covered, tr_action, neg_accumulated_pre_clauses_lst in self._cover_obligations:
             vc = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
                                 [tr_action] +
-                                [ivy_logic_utils.dual_clauses(edge.get_precondition()) for edge in matching_edges] +
+                                neg_accumulated_pre_clauses_lst +
                                 [ivy_all_axioms()])
 
             cex = vc.get_model()
             if cex is None:
                 continue
 
-            logger.debug("Check covered failed: %s doesn't cover action %s",
-                         [edge.get_precondition() for edge in matching_edges],
-                         action_check_covered)
+            # logger.debug("Check covered failed: %s doesn't cover action %s",
+            #              [edge.get_precondition() for edge in matching_edges],
+            #              action_check_covered)
+            logger.debug("Check covered failed: %s doesn't cover action %s", self._lhs_pred, action_check_covered)
 
             return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True),
                     action_check_covered)
