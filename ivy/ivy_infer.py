@@ -106,7 +106,8 @@ class PdrCexModel(object):
         axioms = ivy_all_axioms()
         # axioms = None
         diagram = ivy_solver.clauses_model_to_diagram(clauses, model=self._bad_model,
-                                                      ignore=self._ignore_symbols, axioms=axioms)
+                                                      ignore=self._ignore_symbols, axioms=axioms,
+                                                      weaken=False) # TODO: remove weaken
         logger.debug("calculated diagram of bad state: %s", diagram)
         return diagram
 
