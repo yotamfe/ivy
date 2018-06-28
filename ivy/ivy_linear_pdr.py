@@ -144,28 +144,49 @@ class LinearPdr(ivy_infer.PdrElements):
 
         return current_summaries
 
+    def on_strengthening(self, pred, lemma, prev_summaries, current_summaries, current_bound):
+        return # TODO: remove
+
+        logger.debug("On strengthening %s with %s attempt to push", pred, lemma)
+        outgoing_edges_targets = set(midc.rhs_pred() for midc in self._mid_chc if midc.lhs_pred() == pred)
+        for target_pred in outgoing_edges_targets:
+            # for lemma in current_summaries[pred].get_summary().get_conjuncts_clauses_list():
+            current_summaries = self._push_lemma_to_other_preds(pred, target_pred, lemma,
+                                                                prev_summaries, current_summaries, current_bound)
+
+        logger.debug("Done on strengthening push")
+        return current_summaries
+
+    def _push_lemma_to_other_preds(self, pred, target_pred, lemma, prev_summaries, current_summaries, current_bound):
+        if current_summaries[target_pred].get_summary().has_conjunct(lemma):
+            return current_summaries
+        if (target_pred, current_bound, lemma) in self._failed_push_cache:
+            # heuristic not to check the same failed lemma many times
+            logger.debug("Pushing cache hit: %s => %s of %s in %d", pred, target_pred, lemma,
+                         current_bound)  # TODO: remove
+            return current_summaries
+        logger.debug("Pushing cache miss: %s => %s of %s in %d", pred, target_pred, lemma,
+                     current_bound)  # TODO: remove
+        is_guaranteed_by_pre = self.check_intransformability_to_violation_bool_res(target_pred, prev_summaries, lemma)
+        if not is_guaranteed_by_pre:
+            logger.debug("Could not push between predicates %s => %s: %s, frame %d", pred, target_pred, lemma,
+                         current_bound)
+            self._failed_push_cache.add((target_pred, current_bound, lemma))
+            return current_summaries
+
+        logger.debug("Pushing between predicates %s => %s: %s", pred, target_pred, lemma)
+        current_summaries[target_pred].strengthen(lemma)
+
+        return current_summaries
+
     def _push_to_other_preds(self, pred, prev_summaries, current_summaries, current_bound):
-        # if not PUSH_TO_OTHER_PREDS
-        # return current_summaries # TODO: remove
+        return current_summaries # TODO: remove
 
         outgoing_edges_targets = set(midc.rhs_pred() for midc in self._mid_chc if midc.lhs_pred() == pred)
         for target_pred in outgoing_edges_targets:
             for lemma in current_summaries[pred].get_summary().get_conjuncts_clauses_list():
-                if current_summaries[target_pred].get_summary().has_conjunct(lemma):
-                    continue
-                if (target_pred, current_bound, lemma) in self._failed_push_cache:
-                    # heuristic not to check the same failed lemma many times
-                    logger.debug("Pushing cache hit: %s => %s of %s in %d", pred, target_pred, lemma, current_bound)  # TODO: remove
-                    continue
-                logger.debug("Pushing cache miss: %s => %s of %s in %d", pred, target_pred, lemma, current_bound) # TODO: remove
-                is_guaranteed_by_pre = self.check_intransformability_to_violation_bool_res(target_pred, prev_summaries, lemma)
-                if not is_guaranteed_by_pre:
-                    logger.debug("Could not push between predicates %s => %s: %s, frame %d", pred, target_pred, lemma, current_bound)
-                    self._failed_push_cache.add((target_pred, current_bound, lemma))
-                    continue
-
-                logger.debug("Pushing between predicates %s => %s: %s", pred, target_pred, lemma)
-                current_summaries[target_pred].strengthen(lemma)
+                current_summaries = self._push_lemma_to_other_preds(pred, target_pred, lemma,
+                                                                    prev_summaries, current_summaries, current_bound)
 
         return current_summaries
 
@@ -175,7 +196,6 @@ class LinearPdr(ivy_infer.PdrElements):
             safety_res = safety_constraint.check_satisfaction(summaries)
             if safety_res is None:
                 logger.debug("%s is satisfied" % str(safety_constraint))
-                # TODO: does it make sense here, pushing might eliminate some cexs previously obtained..
                 if prev_summaries is not None:
                     self._push_to_other_preds(safety_constraint.lhs_pred(), prev_summaries, summaries, current_bound)
                 continue
@@ -238,7 +258,9 @@ class LinearPdr(ivy_infer.PdrElements):
         # causing_constraints_idx = ivy_logic_utils.find_all_true_disjuncts_with_mapping_var(all_transformability_combined,
         #                                                                              cex.eval)
         # causing_constraints = [transformers_map[idx] for idx in causing_constraints_idx]
-        # causing_constraints = heuristic_precedence_backwards_search_constraints(causing_constraints)
+        possible_causes_ordered = heuristic_precedence_backwards_search_constraints(transformers_map.values())
+        inv_transformers_map = {v: k for k, v in transformers_map.iteritems()}
+        indices_orders = [inv_transformers_map[transformer] for transformer in possible_causes_ordered]
 
         res = []
 
@@ -246,6 +268,7 @@ class LinearPdr(ivy_infer.PdrElements):
         # causing_constraint = causing_constraints[0]
 
         causing_constraint_idx = ivy_logic_utils.find_true_disjunct_with_mapping_var(all_transformability_combined,
+                                                                                     indices_orders,
                                                                                      cex.eval)
         causing_constraint = transformers_map[causing_constraint_idx]
 

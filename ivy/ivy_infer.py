@@ -154,6 +154,10 @@ class PdrElements(object):
                                  summaries):
         pass
 
+    @abc.abstractmethod
+    def on_strengthening(self, predicate, lemma, previous_summaries, current_summaries, frame_idx):
+        pass
+
     
 class PredicateSummary(object):
     def __init__(self, predicate_symbol, summary_clauses):
@@ -287,6 +291,8 @@ def backwards_prove_at_least_one_goal(frames, current_bound,
                     predicate, current_bound, summary_proof_obligation_generalization)
         for i in xrange(1, current_bound + 1):
             frames[i].strengthen(predicate, summary_proof_obligation_generalization)
+            pdr_elements.on_strengthening(predicate, summary_proof_obligation_generalization,
+                                          frames[i - 1].get_summaries_by_symbol_dict(), frames[i].get_summaries_by_symbol_dict(), i)
            
         # successfully proved at least one proof goal
         return (True, None)
@@ -354,7 +360,7 @@ def pdr(pdr_elements):
     current_bound = 0
    
     while True:
-        logger.debug("pdr: unroll to %d. Time: %s", current_bound + 1, datetime.datetime.now())
+        logger.info("pdr: unroll to %d. Time: %s", current_bound + 1, datetime.datetime.now())
         
         new_bound = current_bound + 1
         frames.insert(new_bound, PdrFrame(pdr_elements.top_summary()))
