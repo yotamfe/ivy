@@ -205,8 +205,9 @@ class LinearPdr(ivy_infer.PdrElements):
             proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model)
             proof_obligations.append((safety_constraint,
                                       [(safety_constraint.lhs_pred(), proof_obligation, extra_info)]))
+            return proof_obligations # TODO: return the first one, heuristic - not sure if it's better
 
-        return proof_obligations
+        # return proof_obligations
 
     def check_intransformability_to_violation_bool_res(self, predicate, summaries_by_symbol, proof_obligation):
         # return not self.check_transformability_to_violation(predicate, summaries_by_symbol, proof_obligation)
