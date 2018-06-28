@@ -235,12 +235,20 @@ class LinearPdr(ivy_infer.PdrElements):
         if cex is None:
             return []
 
-        causing_constraints_idx = ivy_logic_utils.find_all_true_disjuncts_with_mapping_var(all_transformability_combined,
+        # causing_constraints_idx = ivy_logic_utils.find_all_true_disjuncts_with_mapping_var(all_transformability_combined,
+        #                                                                              cex.eval)
+        # causing_constraints = [transformers_map[idx] for idx in causing_constraints_idx]
+        # causing_constraints = heuristic_precedence_backwards_search_constraints(causing_constraints)
+
+        res = []
+
+        # for causing_constraint in causing_constraints:
+        # causing_constraint = causing_constraints[0]
+
+        causing_constraint_idx = ivy_logic_utils.find_true_disjunct_with_mapping_var(all_transformability_combined,
                                                                                      cex.eval)
-        # causing_constraint = transformers[causing_constraint_idx]
-        causing_constraints = [transformers_map[idx] for idx in causing_constraints_idx]
-        causing_constraints = heuristic_precedence_backwards_search_constraints(causing_constraints)
-        causing_constraint = causing_constraints[0]
+        causing_constraint = transformers_map[causing_constraint_idx]
+
         pre_pred = causing_constraint.lhs_pred()
 
         bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation))
@@ -281,7 +289,8 @@ class LinearPdr(ivy_infer.PdrElements):
         logging.debug("Proof obligation: %s", proof_obligation)
 
         logger.debug("Check transformability returned proof obligation: %s", [(causing_constraint, [(pre_pred, proof_obligation)])])
-        return [(causing_constraint, [(pre_pred, proof_obligation, causing_constraint)])]
+        res.append((causing_constraint, [(pre_pred, proof_obligation, causing_constraint)]))
+        return res
 
     def mark_reachable(self, predicate, summary_proof_obligation,
                        summaries, cex_info):
