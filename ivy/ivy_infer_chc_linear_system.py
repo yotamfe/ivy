@@ -600,6 +600,7 @@ def check_automaton(automaton, end, mid, output_filename):
         logger.info("Automaton is inductive!")
     else:
         logger.info("Non inductive automaton!")
+        sys.exit(1)
 
 
 def infer_with_automaton():
