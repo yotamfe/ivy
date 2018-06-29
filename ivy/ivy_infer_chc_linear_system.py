@@ -393,7 +393,7 @@ def load_axiom(axiom_str):
 #   - precond(string, optional) formula that guards when this edge fires
 
 class AutomatonFileRepresentation(object):
-    def __init__(self, filename):
+    def __init__(self, filename, override_safety=None):
         with open(filename, 'rt') as f:
             file_contents = f.read()
         self.json_data = json.loads(file_contents)
@@ -428,7 +428,10 @@ class AutomatonFileRepresentation(object):
                     self.precondition = ivy_logic_utils.true_clauses()
                 self.edges.append((s['name'], target, action, self.precondition))
         safety_str = self.json_data['safety']
-        if not safety_str:
+        if override_safety:
+            logger.debug("Overriding safety with %s", override_safety)
+            self.safety_clauses_lst = [ivy_logic_utils.to_clauses(self._str_back_to_clauses(override_safety))]
+        elif not safety_str:
             self.safety_clauses_lst = global_safety_clauses_lst()
         else:
             logger.debug("Loading safety %s", safety_str)
@@ -470,11 +473,11 @@ class AutomatonFileRepresentation(object):
         return res
 
 
-def load_json_automaton(filename):
-    return AutomatonFileRepresentation(filename)
+def load_json_automaton(filename, override_safety=None):
+    return AutomatonFileRepresentation(filename, override_safety=override_safety)
 
-def infer_safe_summaries(automaton_filename, output_filename=None, check_only=True):
-    automaton = load_json_automaton(automaton_filename)
+def infer_safe_summaries(automaton_filename, output_filename=None, check_only=True, override_safety=None):
+    automaton = load_json_automaton(automaton_filename, override_safety=override_safety)
     logger.debug("States: %s", automaton.states)
     logger.debug("Init: %s", automaton.init)
     logger.debug("Edges: %s", automaton.edges)
@@ -633,6 +636,7 @@ def main():
     import tk_ui as ui
     op_param = iu.Parameter('op', 'infer')
     log_param = iu.BooleanParameter('log', 'true')
+    safety_param = iu.Parameter('safety')
     iu.set_parameters({'mode': 'induction'})
 
     ivy_init.read_params()
@@ -661,7 +665,7 @@ def main():
                     outfilename = sys.argv[3]
 
                 check_only = (op_param.get() == 'check')
-                infer_safe_summaries(sys.argv[2], outfilename, check_only=check_only)
+                infer_safe_summaries(sys.argv[2], outfilename, check_only=check_only, override_safety=safety_param.get())
 
 
 if __name__ == "__main__":
