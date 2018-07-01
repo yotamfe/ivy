@@ -381,6 +381,8 @@ def load_axiom(axiom_str):
 #   - quantifiers(object, optional) key-value items (string-string) of the object specify
 #     variable names to universally quantify and their sorts
 #   - axiom(string, optional) formula to add to axioms from ivy file
+#   - globals(list of string, optional) formulas to be added to the characterization of every state
+#     (useful when checking a manual characterization is inductive)
 #
 # state object:
 #   - name(string, required) the name of the state, used as a unique id
@@ -462,12 +464,15 @@ class AutomatonFileRepresentation(object):
         return s
 
     def characterization_by_state(self):
+        global_facts = [ivy_logic_utils.to_clauses(self._str_back_to_clauses(cf))
+                        for cf in self.json_data.get('global_facts', ['true'])]
+
         res = {}
         for s in self.json_data['states']:
             name = s['name']
             characterization = s.get('characterization', ['true'])
             characterization_clauses_lst = [ivy_logic_utils.to_clauses(self._str_back_to_clauses(cf))
-                                            for cf in characterization]
+                                            for cf in characterization] + global_facts
             res[name] = characterization_clauses_lst
 
         return res
