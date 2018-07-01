@@ -22,6 +22,8 @@ import ivy_utils as iu
 import ivy_unitres as ur
 import logic as lg
 
+import z3_rewrite
+
 import sys
 
 # Following accounts for Z3 API symbols that are hidden as of Z3-4.5.0
@@ -504,7 +506,10 @@ def unsat_core(clauses1, clauses2, implies = None, unlikely=lambda x:False):
         s2.add(c)
     s2.add(clauses_to_z3(clauses2))
     if implies is not None:
-        s2.add(not_clauses_to_z3(implies))
+        if isinstance(implies, z3.ExprRef):
+            s2.add(z3.Not(implies))
+        else:
+            s2.add(not_clauses_to_z3(implies))
     is_sat = s2.check(alits)
     if is_sat == z3.sat:
 #        print "unsat_core model = {}".format(get_model(s2))
@@ -1241,6 +1246,11 @@ def bound_variable_to_model_domain(v, h, reps):
     eqs = [ivy_logic.Equals(v, reps[c.rep]) for c in h.sort_universe(v.sort)]
     return ivy_logic.Or(*eqs)
 
+def bound_quantifiers_to_model_elements_in_z3_formula(h, z3_formula, reps):
+    all_elements_reps = [reps[c.rep]  for sort in h.sorts() for c in h.sort_universe(sort)]
+    all_elements_z3 = [term_to_z3(t) for t in all_elements_reps]
+    return z3_rewrite.restrict_universal_quantifiers_to_terms(z3_formula, all_elements_z3)
+
 def bound_quantifiers_clauses(h,clauses,reps):
    """ Bound the universal quantifiers in "clauses" to just the terms in
        Herbrand model h. This applies only to quantifiers in the constraints of
@@ -1376,14 +1386,19 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
             return ivy_logic.is_eq(fmla) and ivy_logic.is_constant(fmla.args[0])
 
         # clauses1_weak = bound_quantifiers_clauses(h,Clauses(fmlas=[clauses1.to_open_formula()]),reps)
-        # res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
+        clauses1_weak = bound_quantifiers_to_model_elements_in_z3_formula(h, clauses_to_z3(clauses1), reps)
+        res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
         import logging
-        logging.debug("Clauses1: %s", clauses1)
-        logging.debug("Clauses1 axioms: %s", axioms)
-        logging.debug("Clauses1 reps: %s", reps)
+        # res = res1
+        logging.info("Clauses1: %s", clauses1)
+        logging.info("Clauses1 axioms: %s", axioms)
+        logging.info("Clauses1 reps: %s", reps)
         restrict_domain = Clauses(fmlas=[restrict_sort_formula(s, h, reps) for s in h.sorts()])
-        logging.debug("Clauses1 restrict domain: %s", restrict_domain)
-        res = unsat_core(res, and_clauses(restrict_domain, axioms), clauses1, unlikely=unlikely)  # implied not used here
+        # logging.info("Clauses1 restrict domain: %s", restrict_domain)
+        # res = unsat_core(res, and_clauses(restrict_domain, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
+        # logging.debug("GENRES1: %s", res1)
+        # logging.info("GENRES2: %s", res)
+        # logging.info("GENRES1: %s", res1)
         assert res is not None
 #    print "clauses_model_to_diagram res = {}".format(res)
 
