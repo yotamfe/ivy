@@ -381,7 +381,7 @@ def load_axiom(axiom_str):
 #   - quantifiers(object, optional) key-value items (string-string) of the object specify
 #     variable names to universally quantify and their sorts
 #   - axiom(string, optional) formula to add to axioms from ivy file
-#   - globals(list of string, optional) formulas to be added to the characterization of every state
+#   - global_facts(list of string, optional) formulas to be added to the characterization of every state
 #     (useful when checking a manual characterization is inductive)
 #
 # state object:
