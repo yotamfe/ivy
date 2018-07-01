@@ -25,6 +25,7 @@ import logic as lg
 import z3_rewrite
 
 import sys
+import logging
 
 # Following accounts for Z3 API symbols that are hidden as of Z3-4.5.0
 
@@ -1385,20 +1386,11 @@ def clauses_model_to_diagram(clauses1,ignore = None, implied = None,model = None
             # remove if possible the =constant predicates
             return ivy_logic.is_eq(fmla) and ivy_logic.is_constant(fmla.args[0])
 
-        # clauses1_weak = bound_quantifiers_clauses(h,Clauses(fmlas=[clauses1.to_open_formula()]),reps)
         clauses1_weak = bound_quantifiers_to_model_elements_in_z3_formula(h, clauses_to_z3(clauses1), reps)
         res = unsat_core(res, and_clauses(uc, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
-        import logging
-        # res = res1
-        logging.info("Clauses1: %s", clauses1)
-        logging.info("Clauses1 axioms: %s", axioms)
-        logging.info("Clauses1 reps: %s", reps)
-        restrict_domain = Clauses(fmlas=[restrict_sort_formula(s, h, reps) for s in h.sorts()])
-        # logging.info("Clauses1 restrict domain: %s", restrict_domain)
-        # res = unsat_core(res, and_clauses(restrict_domain, axioms), clauses1_weak, unlikely=unlikely)  # implied not used here
-        # logging.debug("GENRES1: %s", res1)
-        # logging.info("GENRES2: %s", res)
-        # logging.info("GENRES1: %s", res1)
+        logging.debug("Clauses1: %s", clauses1)
+        logging.debug("Clauses1 axioms: %s", axioms)
+        logging.debug("Clauses1 reps: %s", reps)
         assert res is not None
 #    print "clauses_model_to_diagram res = {}".format(res)
 

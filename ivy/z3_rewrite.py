@@ -74,8 +74,6 @@ def restrict_universal_quantifiers_to_terms(s, closed_terms):
         body_with_consts = z3.substitute_vars(s.body(), *reversed(consts_quantify_over))
 
         if s.is_forall():
-        # if is_pure_universal(s):
-        #     return s
             s = z3.ForAll(consts_quantify_over,
                          z3.Implies(restriction_guard,
                                     body_with_consts))
@@ -83,8 +81,5 @@ def restrict_universal_quantifiers_to_terms(s, closed_terms):
             s = z3.Exists(consts_quantify_over,
                           z3.And(restriction_guard,
                                  body_with_consts))
-
-    if z3.is_quantifier(s) and not s.is_forall():
-        assert False, "Existential quantification not yet supported"
         
     return update_term(s, [restrict_universal_quantifiers_to_terms(child, closed_terms) for child in s.children()])
