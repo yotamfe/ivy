@@ -5,6 +5,7 @@
 import ivy_logic_utils
 import ivy_transrel
 import ivy_solver
+import ivy_utils as iu
 
 import logging
 import abc
@@ -87,6 +88,8 @@ def ivy_all_axioms():
     return ivy_logic_utils.true_clauses()
 
 
+weaken_param = iu.BooleanParameter('minimize-diagrams', 'true')
+
 # TODO: currently just a wrapper to be used with diagram calls, refactor to extract the diagram from a model
 # TODO: hold a model and clauses to be used with get_model_clauses e.g. to project on pre-state
 class PdrCexModel(object):
@@ -106,7 +109,7 @@ class PdrCexModel(object):
         axioms = ivy_all_axioms()
         # axioms = None
         diagram = ivy_solver.clauses_model_to_diagram(clauses, model=self._bad_model,
-                                                      ignore=self._ignore_symbols, axioms=axioms)
+                                                      ignore=self._ignore_symbols, axioms=axioms, weaken=weaken_param.get())
         logger.debug("calculated diagram of bad state: %s", diagram)
         return diagram
 
