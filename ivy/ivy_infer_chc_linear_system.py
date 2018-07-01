@@ -423,7 +423,7 @@ class AutomatonFileRepresentation(object):
                 action = e['action']
                 if 'precond' in e:
                     logger.debug("Loading edge %s", e['precond'])
-                    self.precondition = ivy_logic_utils.to_clauses(e['precond'])
+                    self.precondition = ivy_logic_utils.to_clauses(self._str_back_to_clauses(e['precond']))
                 else:
                     self.precondition = ivy_logic_utils.true_clauses()
                 self.edges.append((s['name'], target, action, self.precondition))
