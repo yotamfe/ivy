@@ -247,7 +247,8 @@ class LinearPdr(ivy_infer.PdrElements):
 
         transformers = filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc)
         # midc_stages = [lambda midc: True]
-        midc_stages = [lambda midc: midc.lhs_pred() != midc.rhs_pred(), lambda midc: midc.lhs_pred == midc.rhs_pred()]
+        midc_stages = [lambda midc: midc.lhs_pred() != midc.rhs_pred(), lambda midc: midc.lhs_pred() == midc.rhs_pred()]
+
         for stage_filter in midc_stages:
             transformers_this_stage = filter(stage_filter, transformers)
             if not transformers_this_stage:
@@ -260,7 +261,7 @@ class LinearPdr(ivy_infer.PdrElements):
             if res:
                 return res
 
-        return None
+        return []
 
     def _check_transofrmability_to_violation_wrt_transformers(self, predicate, summaries_by_symbol, proof_obligation, transformers):
         unified_transformability_res = self._unified_transformability_update_wrt_transformers(predicate,
