@@ -381,8 +381,10 @@ def load_axiom(axiom_str):
 #   - quantifiers(object, optional) key-value items (string-string) of the object specify
 #     variable names to universally quantify and their sorts
 #   - axiom(string, optional) formula to add to axioms from ivy file
-#   - globals(list of string, optional) formulas to be added to the characterization of every state
+#   - global_facts(list of string, optional) formulas to be added to the characterization of every state
 #     (useful when checking a manual characterization is inductive)
+#   - global_edges(list of edge objects, optional) edges to be added to every state
+#     (useful for self loops that happen at every state)
 #
 # state object:
 #   - name(string, required) the name of the state, used as a unique id
@@ -417,7 +419,7 @@ class AutomatonFileRepresentation(object):
         for s in self.json_data['states']:
             assert s['name'] != 'self', "states may not be named 'self'"
 
-            for e in s['edges']:
+            for e in s['edges'] + self.json_data.get('global_edges', []):
                 target = e['target']
                 if target == 'self':
                     target = s['name']
