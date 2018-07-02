@@ -245,8 +245,31 @@ class LinearPdr(ivy_infer.PdrElements):
         #
         # return proof_obligations
 
-        all_transformability_combined_and_map, all_updated_syms, transformers = self._unified_transformability_update(predicate,
-                                                                                                              summaries_by_symbol)
+        transformers = filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc)
+        # midc_stages = [lambda midc: True]
+        midc_stages = [lambda midc: midc.lhs_pred() != midc.rhs_pred(), lambda midc: midc.lhs_pred == midc.rhs_pred()]
+        for stage_filter in midc_stages:
+            transformers_this_stage = filter(stage_filter, transformers)
+            if not transformers_this_stage:
+                continue
+
+            logging.debug("Checking transformability wrt to %s", transformers_this_stage)
+            res = self._check_transofrmability_to_violation_wrt_transformers(predicate, summaries_by_symbol, proof_obligation,
+                                                                             transformers_this_stage)
+
+            if res is not None:
+                return res
+
+        return None
+
+    def _check_transofrmability_to_violation_wrt_transformers(self, predicate, summaries_by_symbol, proof_obligation, transformers):
+        unified_transformability_res = self._unified_transformability_update_wrt_transformers(predicate,
+                                                                                              summaries_by_symbol,
+                                                                                              transformers)
+        if unified_transformability_res is None:
+            return []
+
+        all_transformability_combined_and_map, all_updated_syms, transformers = unified_transformability_res
         all_transformability_combined, transformers_map = all_transformability_combined_and_map
 
         rhs = ivy_logic_utils.dual_clauses(proof_obligation)
@@ -276,7 +299,8 @@ class LinearPdr(ivy_infer.PdrElements):
 
         pre_pred = causing_constraint.lhs_pred()
 
-        bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol, ivy_logic_utils.dual_clauses(proof_obligation))
+        bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol,
+                                                                  ivy_logic_utils.dual_clauses(proof_obligation))
         assert bad_model_lhs is not None
         if bad_model_lhs is None:
             logger.info("Pred: %s", predicate)
@@ -297,7 +321,7 @@ class LinearPdr(ivy_infer.PdrElements):
                 logger.info("Matching transformability clauses: %s", clauses)
 
             logger.info("Tags:")
-            for idx,atom in enumerate(all_transformability_combined.fmlas[0].args):
+            for idx, atom in enumerate(all_transformability_combined.fmlas[0].args):
                 logger.info("Tag %s val %s", atom, cex.eval(atom))
 
         # TODO: would have like this to work to eliminate an unecessary Z3 call, but I can't
@@ -313,7 +337,8 @@ class LinearPdr(ivy_infer.PdrElements):
         proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model_lhs)
         logging.debug("Proof obligation: %s", proof_obligation)
 
-        logger.debug("Check transformability returned proof obligation: %s", [(causing_constraint, [(pre_pred, proof_obligation)])])
+        logger.debug("Check transformability returned proof obligation: %s",
+                     [(causing_constraint, [(pre_pred, proof_obligation)])])
         res.append((causing_constraint, [(pre_pred, proof_obligation, causing_constraint)]))
         return res
 
@@ -380,8 +405,11 @@ class LinearPdr(ivy_infer.PdrElements):
         #
         # return lemma_generalization
 
-    def _unified_transformability_update(self, predicate, prestate_summaries):
-        transformers = filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc)
+    def _unified_transformability_update_wrt_transformers(self, predicate, prestate_summaries, transformers):
+        logging.debug("Unified transformability wrt transformers: %s", transformers)
+        if not transformers:
+            return None
+
         transformability_clauses = map(lambda midc: midc.transformability_update(prestate_summaries, ivy_transrel.new),
                                        transformers)
         all_updated_syms = set.union(*(set(updated_syms) for (updated_syms, _) in transformability_clauses))
@@ -393,8 +421,16 @@ class LinearPdr(ivy_infer.PdrElements):
             transformability_clauses_unified.append(clauses)
 
         # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
-        all_transformability_combined, disjunct_map_clauses = ivy_logic_utils.tagged_or_clauses_with_mapping('__edge', *transformability_clauses_unified)
-        from_clauses_to_transforer = {clauses: transformer for (clauses, transformer) in zip(transformability_clauses_unified, transformers)}
+        all_transformability_combined, disjunct_map_clauses = ivy_logic_utils.tagged_or_clauses_with_mapping('__edge',
+                                                                                                             *transformability_clauses_unified)
+        from_clauses_to_transforer = {clauses: transformer for (clauses, transformer) in
+                                      zip(transformability_clauses_unified, transformers)}
         disjunct_map = {v: from_clauses_to_transforer[v_clauses] for (v, v_clauses) in disjunct_map_clauses.iteritems()}
         # all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
         return (all_transformability_combined, disjunct_map), all_updated_syms, transformers
+
+    def _unified_transformability_update(self, predicate, prestate_summaries):
+        transformers = filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc)
+        res = self._unified_transformability_update_wrt_transformers(predicate, prestate_summaries, transformers)
+        assert res is not None
+        return res
