@@ -257,7 +257,7 @@ class LinearPdr(ivy_infer.PdrElements):
             res = self._check_transofrmability_to_violation_wrt_transformers(predicate, summaries_by_symbol, proof_obligation,
                                                                              transformers_this_stage)
 
-            if res is not None:
+            if res:
                 return res
 
         return None
