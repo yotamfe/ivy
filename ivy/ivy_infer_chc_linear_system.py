@@ -519,7 +519,9 @@ def sort_safety_constraints_by_heuristic_precedence(init, mid, end):
         safety_forward_order.extend(safety_of_state)
 
     assert set(safety_forward_order) == set(end), "Not all states explored; is the graph not connected? Got %s" % safety_forward_order
-    return list(reversed(safety_forward_order))
+    res = list(reversed(safety_forward_order))
+    logger.info("Safety exploration chosen order: %s", list(reversed(explored_states))) # TODO: eliminate coupling between reversed here and revserd of the safety clauses
+    return res
     # return safety_forward_order
 
 def infer_automaton(automaton, end, mid, output_filename):
