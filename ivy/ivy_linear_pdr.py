@@ -109,6 +109,8 @@ class LinearPdr(ivy_infer.PdrElements):
         self._mid_chc = mid_chc_lst
         self._end_chc = end_chc_lst
 
+        self._satisfied_end_chc_cache = set()
+
         self._axioms = axioms
 
         self._failed_push_cache = set()
@@ -193,9 +195,16 @@ class LinearPdr(ivy_infer.PdrElements):
     def check_summary_safety(self, summaries, prev_summaries=None, current_bound=None):
         proof_obligations = []
         for safety_constraint in self._end_chc:
+
+            if (current_bound, safety_constraint) in self._satisfied_end_chc_cache:
+                logger.debug("Safety already satisfied according to cache, skip: %s, %d", safety_constraint, current_bound)
+                continue
+
             safety_res = safety_constraint.check_satisfaction(summaries)
             if safety_res is None:
                 logger.debug("%s is satisfied" % str(safety_constraint))
+                if current_bound is not None:
+                    self._satisfied_end_chc_cache.add((current_bound, safety_constraint))
                 if prev_summaries is not None:
                     self._push_to_other_preds(safety_constraint.lhs_pred(), prev_summaries, summaries, current_bound)
                 continue
@@ -259,6 +268,8 @@ class LinearPdr(ivy_infer.PdrElements):
                                                                              transformers_this_stage)
 
             if res:
+                logger.debug("Different stages: %s", midc_stages)
+                logger.debug("Going backwards due to edge from stage: %s", stage_filter)
                 return res
 
         return []
