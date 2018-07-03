@@ -183,7 +183,7 @@ class LinearPdr(ivy_infer.PdrElements):
         return current_summaries
 
     def _push_to_other_preds(self, pred, prev_summaries, current_summaries, current_bound):
-        # return current_summaries # TODO: remove
+        return current_summaries # TODO: not pushing to other preds
 
         outgoing_edges_targets = set(midc.rhs_pred() for midc in self._mid_chc if midc.lhs_pred() == pred)
         for target_pred in outgoing_edges_targets:
