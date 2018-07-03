@@ -423,38 +423,29 @@ class LinearPdr(ivy_infer.PdrElements):
         if not transformers:
             return None
 
-        transformability_clauses = {midc: midc.transformability_update(ivy_transrel.new) for midc in transformers}
-        all_updated_syms = set.union(*(set(updated_syms) for (updated_syms, _) in transformability_clauses.itervalues()))
+        transformability_clauses = []
+        for midc in transformers:
+            updated_syms, clauses = midc.transformability_update(ivy_transrel.new)
+            clauses = ivy_transrel.conjoin(prestate_summaries[midc.lhs_pred()].get_summary().to_single_clauses(), clauses)
+            transformability_clauses.append((updated_syms, clauses))
 
-        all_transformability_combined = []
-        disjunct_map = {}
+        all_updated_syms = set.union(*(set(updated_syms) for (updated_syms, _) in transformability_clauses))
+        transformability_clauses_unified = []
+        for (updated_syms, clauses) in transformability_clauses:
+            unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
+                                                      im.module.relations, ivy_transrel.new)
+            clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
+            transformability_clauses_unified.append(clauses)
 
-        for lhs_pred, transformers_on_edge in groupby_ignore_order(transformers, lambda midc: midc.lhs_pred()):
-
-            transformability_clauses_unified_per_edge = []
-            from_clauses_to_transforer = {}
-
-            for transformer in transformers_on_edge:
-                (updated_syms, clauses) = transformability_clauses[transformer]
-                unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
-                                                          im.module.relations, ivy_transrel.new)
-                clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
-                transformability_clauses_unified_per_edge.append(clauses)
-                from_clauses_to_transforer[clauses] = transformer
-
-            # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
-            all_transformability_along_edge, disjunct_map_clauses = ivy_logic_utils.tagged_or_clauses_with_mapping('edge-%s' % str(lhs_pred),
-                                                                                                                   *transformability_clauses_unified_per_edge)
-
-            disjunct_map_edge = {v: from_clauses_to_transforer[v_clauses] for (v, v_clauses) in disjunct_map_clauses.iteritems()}
-            assert not (set(disjunct_map_edge.keys()) & set(disjunct_map.keys()))
-            disjunct_map.update(disjunct_map_edge)
-
-            all_transformability_combined.append(ivy_transrel.conjoin(prestate_summaries[lhs_pred].get_summary().to_single_clauses(),
-                                                                      all_transformability_along_edge))
+        # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
+        all_transformability_combined, disjunct_map_clauses = ivy_logic_utils.tagged_or_clauses_with_mapping('__edge',
+                                                                                                             *transformability_clauses_unified)
+        from_clauses_to_transforer = {clauses: transformer for (clauses, transformer) in
+                                      zip(transformability_clauses_unified, transformers)}
+        disjunct_map = {v: from_clauses_to_transforer[v_clauses] for (v, v_clauses) in disjunct_map_clauses.iteritems()}
         # all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
-        all_transformability_clauses, _ = ivy_logic_utils.tagged_or_clauses_with_mapping('all-edge', *all_transformability_combined)
-        return (all_transformability_clauses, disjunct_map), all_updated_syms, transformers
+
+        return (all_transformability_combined, disjunct_map), all_updated_syms, transformers
 
     def _unified_transformability_update(self, predicate, prestate_summaries):
         transformers = filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc)
