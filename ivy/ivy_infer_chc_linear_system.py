@@ -335,21 +335,21 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         # assert res != None
         # return res[1]
 
-    def transformability_update(self, summaries_by_pred, rhs_vocab):
+    def transformability_update(self, rhs_vocab):
         assert rhs_vocab == ivy_transrel.new, "Caller expects vocabulary unexpected for the constraint"
 
         (_, edge_precond) = self._edge_action
         (updated_syms, clauses, _) = self._action_update
 
-        lhs_clauses_clauses = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
-                                             [clauses] + [edge_precond])
-        as_single_clauses = lhs_clauses_clauses.to_single_clauses()
+        # ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() + [clauses] + [edge_precond])
+        lhs_clauses = ivy_transrel.conjoin(clauses, edge_precond)
+        # as_single_clauses = lhs_clauses_clauses.to_single_clauses()
         # as_single_clauses = ivy_logic_utils.and_clauses_avoid_clash(summaries_by_pred[self._lhs_pred].get_summary().to_single_clauses(),
         #                                                             clauses,
         #                                                             edge_precond)
 
 
-        return (updated_syms, as_single_clauses)
+        return (updated_syms, lhs_clauses)
 
     def __repr__(self):
         return "Edge %s: %s => %s" % (self._edge_action, self._lhs_pred, self._rhs_pred)

@@ -1397,7 +1397,7 @@ def tagged_or_clauses_with_mapping(prefix,*args):
     predicate symbols begin with "prefix". See find_true_disjunct.
     """
     args = coerce_args_to_clauses(args)
-    res,vs,vs_map = or_clauses_int_map_vars(UniqueRenamer('__to0',dict()),args)
+    res,vs,vs_map = or_clauses_int_map_vars(UniqueRenamer('__to0' + prefix,dict()),args)
     return fix_or_annot(res,vs,args), vs_map
 
 

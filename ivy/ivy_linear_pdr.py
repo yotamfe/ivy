@@ -29,6 +29,7 @@ from ivy_infer import ClausesClauses
 import ivy_infer_universal
 import ivy_solver
 import ivy_transrel
+import itertools
 
 # TODO: remove from this module
 def ivy_all_axioms():
@@ -202,7 +203,7 @@ class LinearPdr(ivy_infer.PdrElements):
 
             safety_res = safety_constraint.check_satisfaction(summaries)
             if safety_res is None:
-                logger.debug("%s is satisfied" % str(safety_constraint))
+                logger.info("%s is satisfied" % str(safety_constraint))
                 if current_bound is not None:
                     self._satisfied_end_chc_cache.add((current_bound, safety_constraint))
                 if prev_summaries is not None:
@@ -210,7 +211,7 @@ class LinearPdr(ivy_infer.PdrElements):
                 continue
 
             bad_model, extra_info = safety_res
-            logger.debug("Counterexample to %s", str(safety_constraint))
+            logger.info("Counterexample to %s", str(safety_constraint))
             proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model)
             proof_obligations.append((safety_constraint,
                                       [(safety_constraint.lhs_pred(), proof_obligation, extra_info)]))
@@ -268,8 +269,8 @@ class LinearPdr(ivy_infer.PdrElements):
                                                                              transformers_this_stage)
 
             if res:
-                logger.debug("Different stages: %s", midc_stages)
-                logger.debug("Going backwards due to edge from stage: %s", stage_filter)
+                logger.info("Different stages: %s", midc_stages)
+                logger.info("Going backwards due to edge from stage: %s", stage_filter)
                 return res
 
         return []
@@ -314,27 +315,27 @@ class LinearPdr(ivy_infer.PdrElements):
         bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol,
                                                                   ivy_logic_utils.dual_clauses(proof_obligation))
         assert bad_model_lhs is not None
-        if bad_model_lhs is None:
-            logger.info("Pred: %s", predicate)
-            logger.info("Proof obligation: %s", proof_obligation)
-            logger.info("Causing constraint: %s", causing_constraint)
-            logger.info("Transformability combined: %s", all_transformability_combined)
-            logger.info("Cex: %s", cex)
-            for constraint in transformers:
-                logger.info("Check constraint: %s, result: %s",
-                            constraint,
-                            constraint.check_transformability(summaries_by_symbol,
-                                                              ivy_logic_utils.dual_clauses(proof_obligation)))
-                transformability_clauses = constraint.transformability_update(summaries_by_symbol, ivy_transrel.new)
-                (updated_syms, clauses) = transformability_clauses
-                unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
-                                                          im.module.relations, ivy_transrel.new)
-                clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
-                logger.info("Matching transformability clauses: %s", clauses)
-
-            logger.info("Tags:")
-            for idx, atom in enumerate(all_transformability_combined.fmlas[0].args):
-                logger.info("Tag %s val %s", atom, cex.eval(atom))
+        # if bad_model_lhs is None:
+        #     logger.info("Pred: %s", predicate)
+        #     logger.info("Proof obligation: %s", proof_obligation)
+        #     logger.info("Causing constraint: %s", causing_constraint)
+        #     logger.info("Transformability combined: %s", all_transformability_combined)
+        #     logger.info("Cex: %s", cex)
+        #     for constraint in transformers:
+        #         logger.info("Check constraint: %s, result: %s",
+        #                     constraint,
+        #                     constraint.check_transformability(summaries_by_symbol,
+        #                                                       ivy_logic_utils.dual_clauses(proof_obligation)))
+        #         transformability_clauses = constraint.transformability_update(summaries_by_symbol, ivy_transrel.new)
+        #         (updated_syms, clauses) = transformability_clauses
+        #         unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
+        #                                                   im.module.relations, ivy_transrel.new)
+        #         clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
+        #         logger.info("Matching transformability clauses: %s", clauses)
+        #
+        #     logger.info("Tags:")
+        #     for idx, atom in enumerate(all_transformability_combined.fmlas[0].args):
+        #         logger.info("Tag %s val %s", atom, cex.eval(atom))
 
         # TODO: would have like this to work to eliminate an unecessary Z3 call, but I can't
         # causing_updated_syms, causing_transform_clauses = causing_constraint.transformability_update(summaries_by_symbol,
@@ -422,27 +423,46 @@ class LinearPdr(ivy_infer.PdrElements):
         if not transformers:
             return None
 
-        transformability_clauses = map(lambda midc: midc.transformability_update(prestate_summaries, ivy_transrel.new),
-                                       transformers)
-        all_updated_syms = set.union(*(set(updated_syms) for (updated_syms, _) in transformability_clauses))
-        transformability_clauses_unified = []
-        for (updated_syms, clauses) in transformability_clauses:
-            unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
-                                                      im.module.relations, ivy_transrel.new)
-            clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
-            transformability_clauses_unified.append(clauses)
+        transformability_clauses = {midc: midc.transformability_update(ivy_transrel.new) for midc in transformers}
+        all_updated_syms = set.union(*(set(updated_syms) for (updated_syms, _) in transformability_clauses.itervalues()))
 
-        # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
-        all_transformability_combined, disjunct_map_clauses = ivy_logic_utils.tagged_or_clauses_with_mapping('__edge',
-                                                                                                             *transformability_clauses_unified)
-        from_clauses_to_transforer = {clauses: transformer for (clauses, transformer) in
-                                      zip(transformability_clauses_unified, transformers)}
-        disjunct_map = {v: from_clauses_to_transforer[v_clauses] for (v, v_clauses) in disjunct_map_clauses.iteritems()}
+        all_transformability_combined = []
+        disjunct_map = {}
+
+        for lhs_pred, transformers_on_edge in groupby_ignore_order(transformers, lambda midc: midc.lhs_pred()):
+
+            transformability_clauses_unified_per_edge = []
+            from_clauses_to_transforer = {}
+
+            for transformer in transformers_on_edge:
+                (updated_syms, clauses) = transformability_clauses[transformer]
+                unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
+                                                          im.module.relations, ivy_transrel.new)
+                clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
+                transformability_clauses_unified_per_edge.append(clauses)
+                from_clauses_to_transforer[clauses] = transformer
+
+            # all_transformability_combined = ivy_logic_utils.or_clauses_with_tseitins_avoid_clash(*transformability_clauses_unified)
+            all_transformability_along_edge, disjunct_map_clauses = ivy_logic_utils.tagged_or_clauses_with_mapping('edge-%s' % str(lhs_pred),
+                                                                                                                   *transformability_clauses_unified_per_edge)
+
+            disjunct_map_edge = {v: from_clauses_to_transforer[v_clauses] for (v, v_clauses) in disjunct_map_clauses.iteritems()}
+            assert not (set(disjunct_map_edge.keys()) & set(disjunct_map.keys()))
+            disjunct_map.update(disjunct_map_edge)
+
+            all_transformability_combined.append(ivy_transrel.conjoin(prestate_summaries[lhs_pred].get_summary().to_single_clauses(),
+                                                                      all_transformability_along_edge))
         # all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
-        return (all_transformability_combined, disjunct_map), all_updated_syms, transformers
+        all_transformability_clauses = ivy_logic_utils.or_clauses(*all_transformability_combined)
+        return (all_transformability_clauses, disjunct_map), all_updated_syms, transformers
 
     def _unified_transformability_update(self, predicate, prestate_summaries):
         transformers = filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc)
         res = self._unified_transformability_update_wrt_transformers(predicate, prestate_summaries, transformers)
         assert res is not None
         return res
+
+
+def groupby_ignore_order(collection, key_func):
+    return itertools.groupby(sorted(collection, key=key_func),
+                             key_func)
