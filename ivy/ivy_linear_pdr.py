@@ -31,6 +31,8 @@ import ivy_solver
 import ivy_transrel
 import itertools
 
+push_other_param = iu.BooleanParameter('push-other', False) # TODO: move from here, abomination
+
 # TODO: remove from this module
 def ivy_all_axioms():
     axioms_lst = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms]
@@ -183,7 +185,8 @@ class LinearPdr(ivy_infer.PdrElements):
         return current_summaries
 
     def _push_to_other_preds(self, pred, prev_summaries, current_summaries, current_bound):
-        return current_summaries # TODO: not pushing to other preds
+        if not push_other_param.get():
+            return current_summaries
 
         outgoing_edges_targets = set(midc.rhs_pred() for midc in self._mid_chc if midc.lhs_pred() == pred)
         for target_pred in outgoing_edges_targets:
