@@ -326,7 +326,7 @@ class LinearPdr(ivy_infer.PdrElements):
                             constraint,
                             constraint.check_transformability(summaries_by_symbol,
                                                               ivy_logic_utils.dual_clauses(proof_obligation)))
-                transformability_clauses = constraint.transformability_update(summaries_by_symbol, ivy_transrel.new)
+                transformability_clauses = constraint.transformability_update(ivy_transrel.new)
                 (updated_syms, clauses) = transformability_clauses
                 unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
                                                           im.module.relations, ivy_transrel.new)
