@@ -334,8 +334,9 @@ class LinearPdr(ivy_infer.PdrElements):
                 logger.info("Matching transformability clauses: %s", clauses)
 
             logger.info("Tags:")
-            for idx, atom in enumerate(all_transformability_combined.fmlas[0].args):
-                logger.info("Tag %s val %s", atom, cex.eval(atom))
+            for atom, constraint in transformers_map.iteritems():
+                logging.info("Tag %s, constraint %s", atom, constraint)
+                logger.info("Tag %s val %s for %s", atom, cex.eval(atom), constraint)
 
             assert False
 
