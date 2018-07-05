@@ -1340,11 +1340,11 @@ def or_clauses_int_map_vars(rn,args_param):
     # args = [args[a] for a in original_args]
 #    print "or_clauses_int: args = {}".format(args)
     vs = [bool_const(rn()) for a in original_args]
-    vs_map_to_orig = {v: cls for (cls, v) in zip(original_args, vs)}
-    vs_map = {v: args_to_modified_args[orig_arg] for (v, orig_arg) in vs_map_to_orig.iteritems()}
     fmlas = ([Or(*vs)]
-               + [Or(Not(v),cl) for v,cls in vs_map.iteritems() for cl in cls.fmlas])
+               + [Or(Not(v),cl) for cls,v in zip(modified_args,vs) for cl in cls.fmlas])
     defidx = dict()
+    vs_map_to_orig = {v: cls for (cls,v) in zip(original_args,vs)}
+    vs_map = {v: args_to_modified_args[vs_map_to_orig[v]] for v in vs}
     for v,cls in vs_map.iteritems():
         for d in cls.defs:
             s = d.defines()
