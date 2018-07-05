@@ -203,7 +203,7 @@ class LinearPdr(ivy_infer.PdrElements):
 
             safety_res = safety_constraint.check_satisfaction(summaries)
             if safety_res is None:
-                logger.info("%s is satisfied" % str(safety_constraint))
+                logger.debug("%s is satisfied" % str(safety_constraint))
                 if current_bound is not None:
                     self._satisfied_end_chc_cache.add((current_bound, safety_constraint))
                 if prev_summaries is not None:
@@ -211,7 +211,7 @@ class LinearPdr(ivy_infer.PdrElements):
                 continue
 
             bad_model, extra_info = safety_res
-            logger.info("Counterexample to %s", str(safety_constraint))
+            logger.debug("Counterexample to %s", str(safety_constraint))
             proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model)
             proof_obligations.append((safety_constraint,
                                       [(safety_constraint.lhs_pred(), proof_obligation, extra_info)]))
@@ -269,8 +269,8 @@ class LinearPdr(ivy_infer.PdrElements):
                                                                              transformers_this_stage)
 
             if res:
-                logger.info("Different stages: %s", midc_stages)
-                logger.info("Going backwards due to edge from stage: %s", stage_filter)
+                logger.debug("Different stages: %s", midc_stages)
+                logger.debug("Going backwards due to edge from stage: %s", stage_filter)
                 return res
 
         return []
