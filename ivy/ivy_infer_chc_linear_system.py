@@ -483,18 +483,24 @@ class AutomatonFileRepresentation(object):
 def load_json_automaton(filename, override_safety=None):
     return AutomatonFileRepresentation(filename, override_safety=override_safety)
 
-def infer_safe_summaries(automaton_filename, output_filename=None, check_only=True, override_safety=None):
+def infer_safe_summaries(automaton_filename, output_filename=None, check_only=True, override_safety=None,
+                         use_characterizations=True):
     automaton = load_json_automaton(automaton_filename, override_safety=override_safety)
-    logger.debug("States: %s", automaton.states)
-    logger.debug("Init: %s", automaton.init)
-    logger.debug("Edges: %s", automaton.edges)
-    logger.debug("Safety: %s", automaton.safety_clauses_lst)
-    logger.debug("Axioms: %s", ivy_all_axioms())
+    logger.info("States: %s", automaton.states)
+    logger.info("Init: %s", automaton.init)
+    logger.info("Edges: %s", automaton.edges)
+    logger.info("Safety: %s", automaton.safety_clauses_lst)
+    logger.info("Axioms: %s", ivy_all_axioms())
+    if use_characterizations:
+        logger.info("Input characterizations: %s", automaton.characterization_by_state())
+
 
     mid = [SummaryPostSummaryClause(s1, (action_name, precond), s2) for (s1, s2, action_name, precond) in automaton.edges]
     end_state_safety = [SafetyOfStateClause(s, automaton.safety_clauses_lst) for s in automaton.states]
     end_state_cover_tr = out_edge_covering_tr_constraints(automaton.states, automaton.edges)
     end = end_state_safety + end_state_cover_tr
+    if use_characterizations:
+        end += [SafetyOfStateClause(s, automaton.characterization_by_state()[s]) for s in automaton.states]
 
     if check_only:
         return check_automaton(automaton, end, mid, output_filename)
@@ -615,28 +621,6 @@ def check_automaton(automaton, end, mid, output_filename):
         sys.exit(1)
 
 
-def infer_with_automaton():
-    if len(sys.argv) not in [3, 4] or not sys.argv[1].endswith('ivy'):
-        print "usage: \n  {} file.ivy automaton_in.json [automaton_out.json]".format(sys.argv[0])
-        sys.exit(1)
-
-    with im.Module():
-        with utl.ErrorPrinter():
-            ivy_init.source_file(sys.argv[1], ivy_init.open_read(sys.argv[1]), create_isolate=False)
-
-            # inspired by ivy_check.check_module()
-            isolates = sorted(list(im.module.isolates))
-            assert len(isolates) == 1
-            isolate = isolates[0]
-            with im.module.copy():
-                ivy_isolate.create_isolate(isolate, ext='ext')
-
-                outfilename = None
-                if len(sys.argv) >= 4:
-                    outfilename = sys.argv[3]
-                infer_safe_summaries(sys.argv[2], outfilename)
-
-
 def main():
     import signal
     # signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -646,6 +630,7 @@ def main():
     op_param = iu.Parameter('op', 'infer')
     log_param = iu.BooleanParameter('log', 'true')
     safety_param = iu.Parameter('safety')
+    no_partial_characterization_param = iu.BooleanParameter('ignore-characterization', False)
     iu.set_parameters({'mode': 'induction'})
 
     ivy_init.read_params()
@@ -674,7 +659,12 @@ def main():
                     outfilename = sys.argv[3]
 
                 check_only = (op_param.get() == 'check')
-                infer_safe_summaries(sys.argv[2], outfilename, check_only=check_only, override_safety=safety_param.get())
+
+                use_partial_characterizations = True
+                if no_partial_characterization_param.get():
+                    use_partial_characterizations = False
+                infer_safe_summaries(sys.argv[2], outfilename, check_only=check_only, override_safety=safety_param.get(),
+                                     use_characterizations=use_partial_characterizations)
 
 
 if __name__ == "__main__":
