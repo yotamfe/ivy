@@ -1297,6 +1297,21 @@ def elim_dead_definitions(rn,args):
     res = [elim_definitions(a,dead) for a in args]
     return res
 
+def elim_dead_definitions_transformation_map(rn,args):
+    """ If a symbol defined in one arg occurs free in another,
+    then eliminate the definition by converting it to clauses """
+    original_args = args
+    defd = set(d.defines() for a in args for d in a.defs)
+    occurs = [set(a.symbols()) for a in args]
+    captured = [sym for sym in defd if any (sym not in a.defidx for a in args)]
+    dead = [sym for sym in captured if not sym.is_skolem()]
+    to_rename = [sym for sym in captured if sym.is_skolem()]
+    args = [rename_symbols(rn,arg,to_rename) for arg in args]
+#    print "args = {}, dead = {}".format(args,dead)
+    res = [elim_definitions(a,dead) for a in args]
+    res = {arg: elim_definitions(rename_symbols(rn,arg,to_rename),dead) for (arg,r) in zip(original_args, res)}
+    return res
+
 def or_clauses_int(rn,args):
 #    print "or_clauses_int: args = {}".format(args)
     args = elim_dead_definitions(rn,args)
@@ -1317,17 +1332,19 @@ def or_clauses_int(rn,args):
     #    print "or_clauses_int res = {}".format(res)
     return res,vs
 
-def or_clauses_int_map_vars(rn,args):
+def or_clauses_int_map_vars(rn,args_param):
 #    print "or_clauses_int: args = {}".format(args)
-    original_args = args
-    args = elim_dead_definitions(rn,args)
+    original_args = args_param
+    args_to_modified_args = elim_dead_definitions_transformation_map(rn,original_args)
+    modified_args = [args_to_modified_args[a] for a in original_args]
+    # args = [args[a] for a in original_args]
 #    print "or_clauses_int: args = {}".format(args)
-    vs = [bool_const(rn()) for a in args]
+    vs = [bool_const(rn()) for a in original_args]
     fmlas = ([Or(*vs)]
-               + [Or(Not(v),cl) for cls,v in zip(args,vs) for cl in cls.fmlas])
+               + [Or(Not(v),cl) for cls,v in zip(modified_args,vs) for cl in cls.fmlas])
     defidx = dict()
-    vs_map = {v: cls for (cls,v) in zip(args,vs)}
     vs_map_to_orig = {v: cls for (cls,v) in zip(original_args,vs)}
+    vs_map = {v: args_to_modified_args[vs_map_to_orig[v]] for v in vs}
     for v,cls in vs_map.iteritems():
         for d in cls.defs:
             s = d.defines()
