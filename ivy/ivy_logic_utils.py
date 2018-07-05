@@ -1319,15 +1319,15 @@ def or_clauses_int(rn,args):
 
 def or_clauses_int_map_vars(rn,args):
 #    print "or_clauses_int: args = {}".format(args)
-    # TODO: this changes the args and it's hard to keep track of them for vs_map (for the sake of tagged_or_clauses)
-    # TODO: without this does it hurt performance?
-    #### args = elim_dead_definitions(rn,args)
+    original_args = args
+    args = elim_dead_definitions(rn,args)
 #    print "or_clauses_int: args = {}".format(args)
     vs = [bool_const(rn()) for a in args]
     fmlas = ([Or(*vs)]
                + [Or(Not(v),cl) for cls,v in zip(args,vs) for cl in cls.fmlas])
     defidx = dict()
     vs_map = {v: cls for (cls,v) in zip(args,vs)}
+    vs_map_to_orig = {v: cls for (cls,v) in zip(original_args,vs)}
     for v,cls in vs_map.iteritems():
         for d in cls.defs:
             s = d.defines()
@@ -1338,7 +1338,7 @@ def or_clauses_int_map_vars(rn,args):
     defs = [d for n,d in defidx.iteritems()] # TODO: hash traversal dependency
     res = Clauses(fmlas,defs)
     #    print "or_clauses_int res = {}".format(res)
-    return res,vs,vs_map
+    return res,vs,vs_map_to_orig
 
 
 def debug_clauses_list(cl):
@@ -1397,7 +1397,9 @@ def tagged_or_clauses_with_mapping(prefix,*args):
     predicate symbols begin with "prefix". See find_true_disjunct.
     """
     args = coerce_args_to_clauses(args)
-    res,vs,vs_map = or_clauses_int_map_vars(UniqueRenamer('__to0' + prefix,dict()),args)
+    used = set(chain(*[arg.symbols() for arg in args]))
+    rn = UniqueRenamer('__t0'+prefix, used)
+    res,vs,vs_map = or_clauses_int_map_vars(rn,args)
     return fix_or_annot(res,vs,args), vs_map
 
 
