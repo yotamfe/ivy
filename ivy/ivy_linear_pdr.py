@@ -314,28 +314,30 @@ class LinearPdr(ivy_infer.PdrElements):
 
         bad_model_lhs = causing_constraint.check_transformability(summaries_by_symbol,
                                                                   ivy_logic_utils.dual_clauses(proof_obligation))
-        assert bad_model_lhs is not None
-        # if bad_model_lhs is None:
-        #     logger.info("Pred: %s", predicate)
-        #     logger.info("Proof obligation: %s", proof_obligation)
-        #     logger.info("Causing constraint: %s", causing_constraint)
-        #     logger.info("Transformability combined: %s", all_transformability_combined)
-        #     logger.info("Cex: %s", cex)
-        #     for constraint in transformers:
-        #         logger.info("Check constraint: %s, result: %s",
-        #                     constraint,
-        #                     constraint.check_transformability(summaries_by_symbol,
-        #                                                       ivy_logic_utils.dual_clauses(proof_obligation)))
-        #         transformability_clauses = constraint.transformability_update(summaries_by_symbol, ivy_transrel.new)
-        #         (updated_syms, clauses) = transformability_clauses
-        #         unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
-        #                                                   im.module.relations, ivy_transrel.new)
-        #         clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
-        #         logger.info("Matching transformability clauses: %s", clauses)
-        #
-        #     logger.info("Tags:")
-        #     for idx, atom in enumerate(all_transformability_combined.fmlas[0].args):
-        #         logger.info("Tag %s val %s", atom, cex.eval(atom))
+        # assert bad_model_lhs is not None
+        if bad_model_lhs is None:
+            logger.info("Pred: %s", predicate)
+            logger.info("Proof obligation: %s", proof_obligation)
+            logger.info("Causing constraint: %s", causing_constraint)
+            logger.info("Transformability combined: %s", all_transformability_combined)
+            logger.info("Cex: %s", cex)
+            for constraint in transformers:
+                logger.info("Check constraint: %s, result: %s",
+                            constraint,
+                            constraint.check_transformability(summaries_by_symbol,
+                                                              ivy_logic_utils.dual_clauses(proof_obligation)))
+                transformability_clauses = constraint.transformability_update(summaries_by_symbol, ivy_transrel.new)
+                (updated_syms, clauses) = transformability_clauses
+                unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
+                                                          im.module.relations, ivy_transrel.new)
+                clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
+                logger.info("Matching transformability clauses: %s", clauses)
+
+            logger.info("Tags:")
+            for idx, atom in enumerate(all_transformability_combined.fmlas[0].args):
+                logger.info("Tag %s val %s", atom, cex.eval(atom))
+
+            assert False
 
         # TODO: would have like this to work to eliminate an unecessary Z3 call, but I can't
         # causing_updated_syms, causing_transform_clauses = causing_constraint.transformability_update(summaries_by_symbol,
