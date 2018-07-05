@@ -31,7 +31,7 @@ import ivy_solver
 import ivy_transrel
 import itertools
 
-push_other_param = iu.BooleanParameter('push-other', False) # TODO: move from here, abomination
+push_other_param = iu.BooleanParameter('push-other', False)
 
 # TODO: remove from this module
 def ivy_all_axioms():
