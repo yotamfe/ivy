@@ -308,8 +308,8 @@ class Variable(Term):
         self._base_rep = rep
         self.args = []
         self.sort = sort
-        self.rep = self._base_rep + str(self.sort)
-        # self.rep = self._base_rep
+        # self.rep = self._base_rep + str(self.sort)
+        self.rep = self._base_rep
     def base_name(self):
         return self._base_rep
     # rep = property(lambda self: self._rep())

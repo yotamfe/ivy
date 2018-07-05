@@ -114,8 +114,8 @@ class Var(recstruct('Var', ['name', 'sort'], [])):
         #     name, _ = decompose_var_name(name)
         if name and not name[0].isupper():
             raise IvyError("Bad variable name: {!r}".format(name))
-        # return name + "_" + str(sort), sort
-        return name, sort
+        return name + "_" + str(sort), sort
+        # return name, sort
     rep = property(lambda self: self.name)
     # def base_name(self):
     #     base_name, sort_in_name = decompose_var_name(self.name)
