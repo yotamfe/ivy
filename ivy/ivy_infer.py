@@ -27,7 +27,7 @@ class ClausesClauses(object):
     def to_single_clauses(self):
         res = ivy_logic_utils.true_clauses()
         for clauses in self.get_conjuncts_clauses_list():
-            res = ivy_transrel.conjoin(res, clauses.closed_universals())
+            res = ivy_transrel.conjoin(res)
         return res
    
     def conjoin(self, clauses):
@@ -83,7 +83,7 @@ def ivy_all_axioms():
     import ivy_module as im
     axioms_lst = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms]
     if axioms_lst:
-        return ivy_logic_utils.and_clauses(*axioms_lst)
+        return ClausesClauses(clauses_list=axioms_lst).to_single_clauses()
     # and_clauses on an empty list causes problems, later fails in clauses_using_symbols
     return ivy_logic_utils.true_clauses()
 

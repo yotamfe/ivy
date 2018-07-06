@@ -44,7 +44,7 @@ def global_initial_state():
 def ivy_all_axioms():
     axioms_lst = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms]
     if axioms_lst:
-        return ivy_logic_utils.and_clauses(*axioms_lst)
+        return ClausesClauses(clauses_list=axioms_lst).to_single_clauses()
     # and_clauses on an empty list causes problems, later fails in clauses_using_symbols
     return ivy_logic_utils.true_clauses()
 
@@ -69,14 +69,6 @@ def global_initial_state():
             return initial_state_clauses
 
 
-def ivy_all_axioms():
-    axioms_lst = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms]
-    if axioms_lst:
-        return ivy_logic_utils.and_clauses(*axioms_lst)
-    # and_clauses on an empty list causes problems, later fails in clauses_using_symbols
-    return ivy_logic_utils.true_clauses()
-
-
 def check_action_transition(prestate_clauses, action_name, poststate_obligation):
     import ivy_logic as il
     import logic as lg
@@ -84,7 +76,7 @@ def check_action_transition(prestate_clauses, action_name, poststate_obligation)
     import ivy_module as im
     import ivy_logic_utils as ilu
     from ivy_solver import get_small_model
-    from ivy_logic_utils import and_clauses, dual_clauses
+    from ivy_logic_utils import dual_clauses
     from ivy_interp import State
 
     if True:
@@ -92,8 +84,7 @@ def check_action_transition(prestate_clauses, action_name, poststate_obligation)
         ag = ivy_art.AnalysisGraph()
 
         pre = State()
-        pre.clauses = and_clauses(*prestate_clauses)
-        pre.clauses = and_clauses(pre.clauses, ivy_all_axioms())
+        pre.clauses = ClausesClauses(clauses_list=prestate_clauses + ivy_all_axioms()).to_single_clauses()
 
         with EvalContext(check=False):
             post = ag.execute_action(action_name, pre, None)
