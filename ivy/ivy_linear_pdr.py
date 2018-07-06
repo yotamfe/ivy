@@ -37,7 +37,7 @@ push_other_param = iu.BooleanParameter('push-other', False)
 def ivy_all_axioms():
     axioms_lst = [ivy_logic_utils.formula_to_clauses(lc.formula) for lc in im.module.labeled_axioms]
     if axioms_lst:
-        return ivy_logic_utils.and_clauses(*axioms_lst)
+        return ClausesClauses(clauses_list=axioms_lst).to_single_clauses()
     # and_clauses on an empty list causes problems, later fails in clauses_using_symbols
     return ivy_logic_utils.true_clauses()
 
@@ -127,7 +127,6 @@ class LinearPdr(ivy_infer.PdrElements):
                 self._end_chc_dynamic.append(endc)
         assert set(self._end_chc_dynamic) | set(self._end_chc_static) == set(self._end_chc)
 
-
         self._satisfied_end_chc_cache = set()
 
         self._axioms = axioms
@@ -156,7 +155,8 @@ class LinearPdr(ivy_infer.PdrElements):
         return safety_static_clauses
 
     def top_summary(self):
-        return {pred: ivy_infer.PredicateSummary(pred, self._static_safety_for_pred(pred)) for pred in self._preds}
+        # return {pred: ivy_infer.PredicateSummary(pred, self._static_safety_for_pred(pred)) for pred in self._preds}
+        return {pred: ivy_infer.PredicateSummary(pred, [ivy_logic_utils.true_clauses()]) for pred in self._preds}
 
     def push_forward(self, prev_summaries, current_summaries):
         for pred in prev_summaries:
@@ -223,29 +223,50 @@ class LinearPdr(ivy_infer.PdrElements):
 
         return current_summaries
 
+    def _check_dynamic_safety_constraint(self, safety_constraint, summaries, prev_summaries, current_bound):
+        safety_res = safety_constraint.check_satisfaction(summaries)
+        if safety_res is None:
+            logger.debug("%s is satisfied" % str(safety_constraint))
+            if current_bound is not None:
+                self._satisfied_end_chc_cache.add((current_bound, safety_constraint))
+            if prev_summaries is not None:
+                self._push_to_other_preds(safety_constraint.lhs_pred(), prev_summaries, summaries, current_bound)
+            return None
+
+        bad_model, extra_info = safety_res
+        logger.debug("Counterexample to %s", str(safety_constraint))
+        proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model)
+        return (safety_constraint, [(safety_constraint.lhs_pred(), proof_obligation, extra_info)])
+
     def check_summary_safety(self, summaries, prev_summaries=None, current_bound=None):
         proof_obligations = []
-        for safety_constraint in self._end_chc_dynamic:
+        for safety_constraint in self._end_chc:
 
             if (current_bound, safety_constraint) in self._satisfied_end_chc_cache:
                 logger.debug("Safety already satisfied according to cache, skip: %s, %d", safety_constraint, current_bound)
                 continue
 
-            safety_res = safety_constraint.check_satisfaction(summaries)
-            if safety_res is None:
-                logger.debug("%s is satisfied" % str(safety_constraint))
-                if current_bound is not None:
-                    self._satisfied_end_chc_cache.add((current_bound, safety_constraint))
-                if prev_summaries is not None:
-                    self._push_to_other_preds(safety_constraint.lhs_pred(), prev_summaries, summaries, current_bound)
-                continue
+            if safety_constraint in self._end_chc_static:
+                # generate the safety as obligation only once
+                assert current_bound is not None
+                self._satisfied_end_chc_cache.add((current_bound, safety_constraint))
+                # proof_obligation = (safety_constraint, [(safety_constraint.lhs_pred(), safety_clauses, None)])
+                # proof_obligations.append(proof_obligation)
+                proof_obligation = (safety_constraint, [(safety_constraint.lhs_pred(),
+                                                         ClausesClauses(clauses_list=safety_constraint.get_static_safety_clauses()).to_single_clauses(),
+                                                         None)])
+                logger.debug("Safety requirement directly transferred to previous frame: %s", proof_obligation)
+                proof_obligations.append(proof_obligation)
+                # TODO: when to push to other preds?
+            elif safety_constraint in self._end_chc_dynamic:
+                proof_obligation = self._check_dynamic_safety_constraint(safety_constraint, summaries, prev_summaries, current_bound)
+                if proof_obligation is not None:
+                    proof_obligations.append(proof_obligation)
+            else:
+                raise Exception("Safety constraint %s of unknown type of check" % str(safety_constraint))
 
-            bad_model, extra_info = safety_res
-            logger.debug("Counterexample to %s", str(safety_constraint))
-            proof_obligation = self._generalizer.bad_model_to_proof_obligation(bad_model)
-            proof_obligations.append((safety_constraint,
-                                      [(safety_constraint.lhs_pred(), proof_obligation, extra_info)]))
-            return proof_obligations # TODO: return the first one, heuristic - not sure if it's better
+            if proof_obligations:
+                return proof_obligations  # TODO: return the first one, heuristic - not sure if it's better
 
         # return proof_obligation
         return []
