@@ -319,11 +319,13 @@ def backward_refine_frames_or_counterexample(frames, new_bound,
                                                                                  frames[new_bound-1].get_summaries_by_symbol_dict(),
                                                                                  new_bound)
 
-        log_frames(frames, new_bound) # TODO: remove
+        # log_frames(frames, new_bound) # TODO: remove
 
         if not proof_obligations_per_constraint_lst:
             logger.debug("pdr frame %d is safe", new_bound)
             return (True, None)
+
+        
         
         for (constraint, obligations_prove_at_least_one) in proof_obligations_per_constraint_lst:
             successfully_blocked, cex = backwards_prove_at_least_one_goal(frames, new_bound,
