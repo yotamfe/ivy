@@ -27,7 +27,7 @@ class ClausesClauses(object):
     def to_single_clauses(self):
         res = ivy_logic_utils.true_clauses()
         for clauses in self.get_conjuncts_clauses_list():
-            res = ivy_transrel.conjoin(res)
+            res = ivy_transrel.conjoin(res, clauses)
         return res
    
     def conjoin(self, clauses):
