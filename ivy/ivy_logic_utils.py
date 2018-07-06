@@ -63,8 +63,11 @@ class Clauses(object):
     def conjuncts(self):
         assert self.defs == []
         return [close_epr(c) for c in self.fmlas]
+    def closed_universals(self):
+        return Clauses(fmlas=[close_universals(self.to_open_formula())])
     def epr_closed(self):
         # return Clauses(fmlas=[really_close_epr(self.to_open_formula())])
+        raise Exception("Not maintained")
         return Clauses(fmlas=[really_close_epr(inline_relation_definitions(self).to_open_formula())])
     # TODO: this should not be needed
     def copy(self):
@@ -106,6 +109,17 @@ class Clauses(object):
         return hash((tuple(self.fmlas), tuple(self.defs)))
     def __eq__(self,other):
         return type(other) == type(self) and self.fmlas == other.fmlas and self.defs == other.defs
+
+# based on close_epr
+def close_universals(fmla):
+    if isinstance(fmla,And):
+        return And(*[close_universals(f) for f in fmla.args])
+    vars = list(used_variables_ast(fmla))
+    if vars == []:
+        return fmla
+    else:
+        return ForAll(vars,fmla)
+
 
 def close_epr(fmla):
     """ Convert fmla to E X. A Y. fmla, where X are the skolems in fmla and Y are the variables. """

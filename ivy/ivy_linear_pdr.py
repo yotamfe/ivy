@@ -507,6 +507,7 @@ class LinearPdr(ivy_infer.PdrElements):
                 unchanged_equal = ivy_transrel.diff_frame(updated_syms, all_updated_syms,
                                                           im.module.relations, ivy_transrel.new)
                 clauses = ivy_transrel.conjoin(clauses, unchanged_equal)
+                clauses = clauses.closed_universals()
                 transformability_clauses_unified_per_edge.append(clauses)
                 from_clauses_to_transforer[clauses] = transformer
 
@@ -518,7 +519,7 @@ class LinearPdr(ivy_infer.PdrElements):
             assert not (set(disjunct_map_edge.keys()) & set(disjunct_map.keys()))
             disjunct_map.update(disjunct_map_edge)
 
-            all_transformability_combined.append(ivy_transrel.conjoin(prestate_summaries[lhs_pred].get_summary().to_single_clauses(),
+            all_transformability_combined.append(ivy_transrel.conjoin(prestate_summaries[lhs_pred].get_summary().to_single_clauses().closed_universals(),
                                                                       all_transformability_along_edge))
         # all_transformability_combined = ivy_logic_utils.or_clauses(*transformability_clauses_unified)
         all_transformability_clauses, _ = ivy_logic_utils.tagged_or_clauses_with_mapping('all-edge', *all_transformability_combined)
