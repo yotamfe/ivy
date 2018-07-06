@@ -84,7 +84,7 @@ def check_action_transition(prestate_clauses, action_name, poststate_obligation)
         ag = ivy_art.AnalysisGraph()
 
         pre = State()
-        pre.clauses = ClausesClauses(clauses_list=prestate_clauses + ivy_all_axioms()).to_single_clauses()
+        pre.clauses = ClausesClauses(clauses_list=prestate_clauses + [ivy_all_axioms()]).to_single_clauses()
 
         with EvalContext(check=False):
             post = ag.execute_action(action_name, pre, None)
