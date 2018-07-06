@@ -27,7 +27,7 @@ class ClausesClauses(object):
     def to_single_clauses(self):
         res = ivy_logic_utils.true_clauses()
         for clauses in self.get_conjuncts_clauses_list():
-            res = ivy_transrel.conjoin(res, clauses)
+            res = ivy_transrel.conjoin(res, clauses.closed_universals())
         return res
    
     def conjoin(self, clauses):
@@ -326,7 +326,6 @@ def backward_refine_frames_or_counterexample(frames, new_bound,
             return (True, None)
 
         
-        
         for (constraint, obligations_prove_at_least_one) in proof_obligations_per_constraint_lst:
             successfully_blocked, cex = backwards_prove_at_least_one_goal(frames, new_bound,
                                                                           obligations_prove_at_least_one, pdr_elements,
@@ -389,7 +388,7 @@ def pdr(pdr_elements):
         fixpoint_summaries = check_pdr_convergence(frames, current_bound)
         if fixpoint_summaries is not None:
             logger.debug("pdr frames at fixpoint")
-            assert pdr_elements.check_summary_safety(fixpoint_summaries) == []
+            # assert pdr_elements.check_summary_safety(fixpoint_summaries) == []
 
             return (True, fixpoint_summaries)
         else:
