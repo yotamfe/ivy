@@ -207,6 +207,12 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         return None
 
+    def has_static_representation(self):
+        return True
+
+    def get_static_safety_clauses(self):
+        return self._safey_clauses_lst
+
     def __str__(self):
         return "Safety: %s => %s" % (self._lhs_pred, self._safey_clauses_lst)
 

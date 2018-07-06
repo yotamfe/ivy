@@ -77,6 +77,9 @@ class LinearSafetyConstraint(LinearTransformabilityHornClause):
     def check_satisfaction(self, summaries_by_pred):
         pass
 
+    def has_static_representation(self):
+        return False
+
 class LinearMiddleConstraint(LinearTransformabilityHornClause):
     __metaclass__ = abc.ABCMeta
 
@@ -110,7 +113,18 @@ class LinearPdr(ivy_infer.PdrElements):
 
         self._init_chc = init_chc_lst
         self._mid_chc = mid_chc_lst
+
         self._end_chc = end_chc_lst
+        self._end_chc_static = []
+        self._end_chc_dynamic = []
+        for endc in self._end_chc:
+            if endc.has_static_representation():
+                # if all(clauses.is_universal_first_order() for clauses in endc.get_static_safety_clauses()):
+                self._end_chc_static.append(endc)
+            else:
+                self._end_chc_dynamic.append(endc)
+        assert set(self._end_chc_dynamic) | set(self._end_chc_static) == set(self._end_chc)
+
 
         self._satisfied_end_chc_cache = set()
 
@@ -128,8 +142,19 @@ class LinearPdr(ivy_infer.PdrElements):
 
         return {pred: ivy_infer.PredicateSummary(pred, initial_summary[pred]) for pred in self._preds}
 
+    def _static_safety_for_pred(self, pred):
+        safety_static_clauses = []
+        for endc in self._end_chc_static:
+            if endc.lhs_pred() != pred:
+                continue
+            safety_static_clauses.extend(endc.get_static_safety_clauses())
+
+        if not safety_static_clauses:
+            return [ivy_logic_utils.true_clauses()]
+        return safety_static_clauses
+
     def top_summary(self):
-        return {pred: ivy_infer.PredicateSummary(pred, ivy_logic_utils.true_clauses()) for pred in self._preds}
+        return {pred: ivy_infer.PredicateSummary(pred, self._static_safety_for_pred(pred)) for pred in self._preds}
 
     def push_forward(self, prev_summaries, current_summaries):
         for pred in prev_summaries:
@@ -198,7 +223,7 @@ class LinearPdr(ivy_infer.PdrElements):
 
     def check_summary_safety(self, summaries, prev_summaries=None, current_bound=None):
         proof_obligations = []
-        for safety_constraint in self._end_chc:
+        for safety_constraint in self._end_chc_dynamic:
 
             if (current_bound, safety_constraint) in self._satisfied_end_chc_cache:
                 logger.debug("Safety already satisfied according to cache, skip: %s, %d", safety_constraint, current_bound)
