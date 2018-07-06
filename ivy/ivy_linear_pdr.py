@@ -119,6 +119,8 @@ class LinearPdr(ivy_infer.PdrElements):
         self._end_chc_dynamic = []
         for endc in self._end_chc:
             if endc.has_static_representation():
+                # TODO: guard again adding non-universal conjuncts to the invariant.
+                # note that clauses.is_universal_first_order() does not account for explicit quantification
                 # if all(clauses.is_universal_first_order() for clauses in endc.get_static_safety_clauses()):
                 self._end_chc_static.append(endc)
             else:
