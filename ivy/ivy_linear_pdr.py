@@ -421,51 +421,51 @@ class LinearPdr(ivy_infer.PdrElements):
         # generalization = res[1]
 
         # TODO: assert (in debug) that it is unreachable from previous frame, in any way
-        for transformer in filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc):
-            is_transformable = transformer.check_transformability(prestate_summaries,
-                                                                  ivy_logic_utils.dual_clauses(generalization))
-            if is_transformable is not None:
-                logger.info("Failing transformer: %s", str(transformer))
-                is_transformable_orig = transformer.check_transformability(prestate_summaries,
-                                                                           ivy_logic_utils.dual_clauses(lemma))
-                logger.info("Is transformable lemma before generalization: %s, lemma: %s", is_transformable_orig, lemma)
-                logger.info("Unified transformability clauses: %s", all_transformability_combined)
-                for clauses, midc in transformability_clauses_map.iteritems():
-                    logger.info("Unified transformability update for %s: %s", midc, clauses)
-
-                (single_unified_transformability,
-                 _), single_updated_syms, _ = self._unified_transformability_update_wrt_transformers(predicate,
-                                                                                                     prestate_summaries,
-                                                                                                     [transformer])
-                logger.info("Unified single transformability: %s, %s", single_updated_syms,
-                            single_unified_transformability)
-                is_res_actually_unsat = ClausesClauses(
-                    [all_transformability_combined, ivy_logic_utils.dual_clauses(res[1])]).get_model()
-                logger.info("is res unsat: %s", is_res_actually_unsat is None)
-                is_gen_actually_unsat = ClausesClauses([all_transformability_combined,
-                                                        forward_clauses(ivy_logic_utils.dual_clauses(generalization),
-                                                                        all_updated_syms)]).get_model()
-                logger.info("is gen unsat: %s", is_gen_actually_unsat is None)
-
-                unified_trans_separated, all_updated_syms_separated = self._debug_unified_transformability_update_wrt_transformers(
-                    predicate, prestate_summaries, filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc))
-                for clauses_sep in unified_trans_separated:
-                    checkos = ClausesClauses([clauses_sep, forward_clauses(ivy_logic_utils.dual_clauses(generalization),
-                                                                           all_updated_syms_separated)]).get_model()
-                    logger.info("is gen unsat separate transformer: %s", checkos is None)
-
-                checkos_all = ClausesClauses(
-                    [ivy_logic_utils.tagged_or_clauses_with_mapping('__edge', *unified_trans_separated)[0],
-                     forward_clauses(ivy_logic_utils.dual_clauses(generalization),
-                                     all_updated_syms_separated)]).get_model()
-                logger.info("is gen unsat separate transformer orred: %s", checkos_all is None)
-
-                checkos_all_or = ClausesClauses(
-                    [ivy_logic_utils.or_clauses(*unified_trans_separated),
-                     forward_clauses(ivy_logic_utils.dual_clauses(generalization),
-                                     all_updated_syms_separated)]).get_model()
-                logger.info("is gen unsat separate transformer orred real: %s", checkos_all_or is None)
-                assert False
+        # for transformer in filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc):
+        #     is_transformable = transformer.check_transformability(prestate_summaries,
+        #                                                           ivy_logic_utils.dual_clauses(generalization))
+        #     if is_transformable is not None:
+        #         logger.info("Failing transformer: %s", str(transformer))
+        #         is_transformable_orig = transformer.check_transformability(prestate_summaries,
+        #                                                                    ivy_logic_utils.dual_clauses(lemma))
+        #         logger.info("Is transformable lemma before generalization: %s, lemma: %s", is_transformable_orig, lemma)
+        #         logger.info("Unified transformability clauses: %s", all_transformability_combined)
+        #         for clauses, midc in transformability_clauses_map.iteritems():
+        #             logger.info("Unified transformability update for %s: %s", midc, clauses)
+        #
+        #         (single_unified_transformability,
+        #          _), single_updated_syms, _ = self._unified_transformability_update_wrt_transformers(predicate,
+        #                                                                                              prestate_summaries,
+        #                                                                                              [transformer])
+        #         logger.info("Unified single transformability: %s, %s", single_updated_syms,
+        #                     single_unified_transformability)
+        #         is_res_actually_unsat = ClausesClauses(
+        #             [all_transformability_combined, ivy_logic_utils.dual_clauses(res[1])]).get_model()
+        #         logger.info("is res unsat: %s", is_res_actually_unsat is None)
+        #         is_gen_actually_unsat = ClausesClauses([all_transformability_combined,
+        #                                                 forward_clauses(ivy_logic_utils.dual_clauses(generalization),
+        #                                                                 all_updated_syms)]).get_model()
+        #         logger.info("is gen unsat: %s", is_gen_actually_unsat is None)
+        #
+        #         unified_trans_separated, all_updated_syms_separated = self._debug_unified_transformability_update_wrt_transformers(
+        #             predicate, prestate_summaries, filter(lambda midc: midc.rhs_pred() == predicate, self._mid_chc))
+        #         for clauses_sep in unified_trans_separated:
+        #             checkos = ClausesClauses([clauses_sep, forward_clauses(ivy_logic_utils.dual_clauses(generalization),
+        #                                                                    all_updated_syms_separated)]).get_model()
+        #             logger.info("is gen unsat separate transformer: %s", checkos is None)
+        #
+        #         checkos_all = ClausesClauses(
+        #             [ivy_logic_utils.tagged_or_clauses_with_mapping('__edge', *unified_trans_separated)[0],
+        #              forward_clauses(ivy_logic_utils.dual_clauses(generalization),
+        #                              all_updated_syms_separated)]).get_model()
+        #         logger.info("is gen unsat separate transformer orred: %s", checkos_all is None)
+        #
+        #         checkos_all_or = ClausesClauses(
+        #             [ivy_logic_utils.or_clauses(*unified_trans_separated),
+        #              forward_clauses(ivy_logic_utils.dual_clauses(generalization),
+        #                              all_updated_syms_separated)]).get_model()
+        #         logger.info("is gen unsat separate transformer orred real: %s", checkos_all_or is None)
+        #         assert False
 
         return generalization
 
