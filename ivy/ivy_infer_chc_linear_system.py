@@ -193,7 +193,7 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
             if bad_inv_model is None:
                 continue
 
-            return (ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses()),
+            return (ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses(close=True)),
                     conjecture)
 
         return None
@@ -260,7 +260,7 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
             #              action_check_covered)
             logger.debug("Check covered failed: %s doesn't cover action %s", self._lhs_pred, action_check_covered)
 
-            return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True),
+            return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(close=True), project_pre=True),
                     action_check_covered)
 
         return None
@@ -285,7 +285,7 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
 
         logger.debug("Checking edge (%s, %s, %s): %s in prestate guarantees %s in poststate?",
                      self._lhs_pred, self._edge_action, self._rhs_pred,
-                     prestate_summary.to_single_clauses(), proof_obligation)
+                     prestate_summary.to_single_clauses(close=True), proof_obligation)
 
         edge_action_name, edge_action_precond = self._edge_action
         countertransition = check_action_transition(prestate_summary.get_conjuncts_clauses_list() + [edge_action_precond],
