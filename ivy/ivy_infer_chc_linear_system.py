@@ -260,7 +260,7 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
             #              action_check_covered)
             logger.debug("Check covered failed: %s doesn't cover action %s", self._lhs_pred, action_check_covered)
 
-            return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(close=True), project_pre=True),
+            return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True),
                     action_check_covered)
 
         return None
