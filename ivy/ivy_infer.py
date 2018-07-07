@@ -23,9 +23,11 @@ class ClausesClauses(object):
         # return ivy_logic_utils.avoid_variables_clash(self._conjuncts_clauses_list) # TODO: without this, got error becuase of name capture between tr and summary, I think
         return self._conjuncts_clauses_list
 
-    def to_single_clauses(self):
+    def to_single_clauses(self, close=False):
         res = ivy_logic_utils.true_clauses()
         for clauses in self.get_conjuncts_clauses_list():
+            if close:
+                clauses = clauses.closed_universals()
             res = ivy_transrel.conjoin(res, clauses)
         return res
    
