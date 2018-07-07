@@ -285,7 +285,7 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
 
         logger.debug("Checking edge (%s, %s, %s): %s in prestate guarantees %s in poststate?",
                      self._lhs_pred, self._edge_action, self._rhs_pred,
-                     prestate_summary.to_single_clauses(close=True), proof_obligation)
+                     prestate_summary.to_single_clauses(), proof_obligation)
 
         edge_action_name, edge_action_precond = self._edge_action
         countertransition = check_action_transition(prestate_summary.get_conjuncts_clauses_list() + [edge_action_precond],
