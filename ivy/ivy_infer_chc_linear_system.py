@@ -29,6 +29,9 @@ import datetime
 
 logger = logging.getLogger(__file__)
 
+enforce_precond_hint = iu.BooleanParameter('precond-hint-force', False)
+ignore_precond_hint  = iu.BooleanParameter('precond-hint-ignore', False)
+
 # TODO: eliminate duplication with ivy_infer_global_invariant
 def global_initial_state():
     # see ivy_check.summarize_isolate()
@@ -234,14 +237,20 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
             if any(edge.get_precondition().is_true() for edge in matching_edges):
                 continue # covering this action is guaranteed
 
-            if actions_single_vocab_precond and action_check_covered in self._actions_single_vocab_precond:
+            if (not ignore_precond_hint.get()) and actions_single_vocab_precond and action_check_covered in self._actions_single_vocab_precond:
                 tr_assume = actions_single_vocab_precond[action_check_covered]
+                double_vocab_model = False
             else:
+                if enforce_precond_hint.get():
+                    raise Exception("No supplied precondition for action %s", action_check_covered)
+
                 (_, tr_action, _) = action_update(im.module.actions[action_check_covered])
                 tr_assume = tr_action.closed_universals()
+                double_vocab_model = True
 
             self._cover_obligations.append((action_check_covered,
                                             tr_assume,
+                                            double_vocab_model,
                                             [ivy_logic_utils.dual_clauses(edge.get_precondition()) for edge in matching_edges]))
 
 
@@ -252,7 +261,7 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
     def check_satisfaction(self, summaries_by_pred):
         logging.debug("Check edge covering: all exported %s, is covered by %s", self.full_tr_list_actions(), self._out_edges_actions)
 
-        for action_check_covered, tr_assume, neg_accumulated_pre_clauses_lst in self._cover_obligations:
+        for action_check_covered, tr_assume, is_double_vocab, neg_accumulated_pre_clauses_lst in self._cover_obligations:
             vc = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
                                 [tr_assume] +
                                 neg_accumulated_pre_clauses_lst +
@@ -267,8 +276,7 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
             #              action_check_covered)
             logger.debug("Check covered failed: %s doesn't cover action %s", self._lhs_pred, action_check_covered)
 
-            project_pre_not_needed = self._actions_single_vocab_precond is None or (not action_check_covered in self._actions_single_vocab_precond) # TODO: make more explicit the choice of given precond or entire TR
-            return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=not project_pre_not_needed),
+            return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=is_double_vocab),
                     action_check_covered)
 
         return None
