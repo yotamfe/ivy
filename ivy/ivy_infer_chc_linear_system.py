@@ -218,7 +218,7 @@ class AutomatonEdge(object):
 
 
 class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
-    def __init__(self, pred, out_edges_actions):
+    def __init__(self, pred, out_edges_actions, actions_single_vocab_precond=None):
         super(OutEdgesCoveringTrClause, self).__init__(pred, ivy_logic_utils.true_clauses())
 
         self._out_edges_actions = out_edges_actions
@@ -227,14 +227,21 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
             assert out_edge.get_action_name() in checked_wrt_to_actions, "%s not known from %s" % (out_edge.get_action_name(), checked_wrt_to_actions)
 
         self._cover_obligations = []
+        self._actions_single_vocab_precond = actions_single_vocab_precond
+
         for action_check_covered in checked_wrt_to_actions:
             matching_edges = filter(lambda edge: edge.get_action_name() == action_check_covered, self._out_edges_actions)
             if any(edge.get_precondition().is_true() for edge in matching_edges):
                 continue # covering this action is guaranteed
 
-            (_, tr_action, _) = action_update(im.module.actions[action_check_covered])
+            if actions_single_vocab_precond and action_check_covered in self._actions_single_vocab_precond:
+                tr_assume = actions_single_vocab_precond[action_check_covered]
+            else:
+                (_, tr_action, _) = action_update(im.module.actions[action_check_covered])
+                tr_assume = tr_action.closed_universals()
+
             self._cover_obligations.append((action_check_covered,
-                                            tr_action,
+                                            tr_assume,
                                             [ivy_logic_utils.dual_clauses(edge.get_precondition()) for edge in matching_edges]))
 
 
@@ -245,9 +252,9 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
     def check_satisfaction(self, summaries_by_pred):
         logging.debug("Check edge covering: all exported %s, is covered by %s", self.full_tr_list_actions(), self._out_edges_actions)
 
-        for action_check_covered, tr_action, neg_accumulated_pre_clauses_lst in self._cover_obligations:
+        for action_check_covered, tr_assume, neg_accumulated_pre_clauses_lst in self._cover_obligations:
             vc = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
-                                [tr_action.closed_universals()] +
+                                [tr_assume] +
                                 neg_accumulated_pre_clauses_lst +
                                 [ivy_all_axioms()])
 
@@ -260,7 +267,8 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
             #              action_check_covered)
             logger.debug("Check covered failed: %s doesn't cover action %s", self._lhs_pred, action_check_covered)
 
-            return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=True),
+            project_pre_not_needed = self._actions_single_vocab_precond is None or (not action_check_covered in self._actions_single_vocab_precond) # TODO: make more explicit the choice of given precond or entire TR
+            return (ivy_infer.PdrCexModel(cex, vc.to_single_clauses(), project_pre=not project_pre_not_needed),
                     action_check_covered)
 
         return None
@@ -346,11 +354,11 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
         return "Edge %s: %s => %s" % (self._edge_action, self._lhs_pred, self._rhs_pred)
 
 
-def out_edge_covering_tr_constraints(states, edges):
+def out_edge_covering_tr_constraints(states, edges, actions_single_vocab_precond):
     constraints = []
     for state in states:
         out_actions = [AutomatonEdge(action, precondition=pre) for (s1, _, action, pre) in edges if s1 == state]
-        constraints.append(OutEdgesCoveringTrClause(state, out_actions))
+        constraints.append(OutEdgesCoveringTrClause(state, out_actions, actions_single_vocab_precond))
 
     return constraints
 
@@ -372,6 +380,8 @@ def load_axiom(axiom_str):
 #   - quantifiers(object, optional) key-value items (string-string) of the object specify
 #     variable names to universally quantify and their sorts
 #   - axiom(string, optional) formula to add to axioms from ivy file
+#   - action-precond(object, optional) key-value items (string-string) of the object specify
+#     single-vocabulary preconditions of actions. Workaround the need to extract them from Ivy
 #   - global_facts(list of string, optional) formulas to be added to the characterization of every state
 #     (useful when checking a manual characterization is inductive)
 #   - global_edges(list of edge objects, optional) edges to be added to every state
@@ -405,6 +415,15 @@ class AutomatonFileRepresentation(object):
         if 'axiom' in self.json_data:
             logger.debug("Loading axiom...")
             load_axiom(self.json_data['axiom'])
+
+        self.actions_single_vocab_precond = {}
+        if 'action-precond' in self.json_data:
+            logger.info("Loading action preconditions...")
+            for (action_name, global_action_precond) in self.json_data['action-precond'].iteritems():
+                global_action_precond_clauses = ivy_logic_utils.to_clauses(self._str_back_to_clauses(global_action_precond))
+                logger.info("Declared precondition of %s: %s", action_name, global_action_precond_clauses)
+                self.actions_single_vocab_precond[action_name] = global_action_precond_clauses
+        # TODO: check soundness!
 
         self.edges = []
         for s in self.json_data['states']:
@@ -488,7 +507,7 @@ def infer_safe_summaries(automaton_filename, output_filename=None, check_only=Tr
 
     mid = [SummaryPostSummaryClause(s1, (action_name, precond), s2) for (s1, s2, action_name, precond) in automaton.edges]
     end_state_safety = [SafetyOfStateClause(s, automaton.safety_clauses_lst) for s in automaton.states]
-    end_state_cover_tr = out_edge_covering_tr_constraints(automaton.states, automaton.edges)
+    end_state_cover_tr = out_edge_covering_tr_constraints(automaton.states, automaton.edges, automaton.actions_single_vocab_precond)
     end = end_state_safety + end_state_cover_tr
     if use_characterizations:
         end += [SafetyOfStateClause(s, automaton.characterization_by_state()[s]) for s in automaton.states]
