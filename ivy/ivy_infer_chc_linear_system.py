@@ -288,7 +288,7 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
                      prestate_summary.to_single_clauses(), proof_obligation)
 
         edge_action_name, edge_action_precond = self._edge_action
-        countertransition = check_action_transition(prestate_summary.get_conjuncts_clauses_list() + [edge_action_precond],
+        countertransition = check_action_transition(prestate_summary.get_conjuncts_clauses_list() + [edge_action_precond.closed_universals()],
                                                     edge_action_name,
                                                     ClausesClauses([proof_obligation]))
 
