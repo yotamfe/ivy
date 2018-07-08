@@ -493,6 +493,13 @@ class AutomatonFileRepresentation(object):
 def load_json_automaton(filename, override_safety=None):
     return AutomatonFileRepresentation(filename, override_safety=override_safety)
 
+
+def assert_precondition_hints_soundness(actions_single_vocab_precond):
+    for action_name, provided_precondition in actions_single_vocab_precond.iteritems():
+        (_, tr_action, _) = action_update(im.module.actions[action_name])
+        assert ivy_solver.clauses_imply(tr_action, provided_precondition), "Bad precondition: %s, %s" % (action_name, provided_precondition)
+
+
 def infer_safe_summaries(automaton_filename, output_filename=None, check_only=True, override_safety=None,
                          use_characterizations=True):
     automaton = load_json_automaton(automaton_filename, override_safety=override_safety)
@@ -503,6 +510,8 @@ def infer_safe_summaries(automaton_filename, output_filename=None, check_only=Tr
     logger.info("Axioms: %s", ivy_all_axioms())
     if use_characterizations:
         logger.info("Input characterizations: %s", automaton.characterization_by_state())
+    logger.debug("Provided preconditions of actions: %s", automaton.actions_single_vocab_precond)
+    assert_precondition_hints_soundness(automaton.actions_single_vocab_precond)
 
 
     mid = [SummaryPostSummaryClause(s1, (action_name, precond), s2) for (s1, s2, action_name, precond) in automaton.edges]
