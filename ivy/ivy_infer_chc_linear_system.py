@@ -248,7 +248,7 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
         for action_check_covered, tr_action, neg_accumulated_pre_clauses_lst in self._cover_obligations:
             vc = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
                                 [tr_action] +
-                                neg_accumulated_pre_clauses_lst +
+                                [c.closed_universals() for c in neg_accumulated_pre_clauses_lst] +
                                 [ivy_all_axioms()])
 
             cex = vc.get_model()
@@ -288,7 +288,7 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
                      prestate_summary.to_single_clauses(), proof_obligation)
 
         edge_action_name, edge_action_precond = self._edge_action
-        countertransition = check_action_transition(prestate_summary.get_conjuncts_clauses_list() + [edge_action_precond.closed_universals()],
+        countertransition = check_action_transition(prestate_summary.get_conjuncts_clauses_list() + [edge_action_precond],
                                                     edge_action_name,
                                                     ClausesClauses([proof_obligation]))
 
