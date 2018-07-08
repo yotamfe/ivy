@@ -193,7 +193,7 @@ class SafetyOfStateClause(ivy_linear_pdr.LinearSafetyConstraint):
             if bad_inv_model is None:
                 continue
 
-            return (ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses(close=True)),
+            return (ivy_infer.PdrCexModel(bad_inv_model, inv_but_bad_clauses.to_single_clauses()),
                     conjecture)
 
         return None
