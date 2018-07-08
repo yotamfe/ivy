@@ -247,7 +247,7 @@ class OutEdgesCoveringTrClause(ivy_linear_pdr.LinearSafetyConstraint):
 
         for action_check_covered, tr_action, neg_accumulated_pre_clauses_lst in self._cover_obligations:
             vc = ClausesClauses(summaries_by_pred[self._lhs_pred].get_summary().get_conjuncts_clauses_list() +
-                                [tr_action.closed_univerals()] +
+                                [tr_action.closed_universals()] +
                                 neg_accumulated_pre_clauses_lst +
                                 [ivy_all_axioms()])
 
