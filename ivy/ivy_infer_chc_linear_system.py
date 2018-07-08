@@ -518,7 +518,7 @@ def infer_safe_summaries(automaton_filename, output_filename=None, check_only=Tr
     logger.info("Axioms: %s", ivy_all_axioms())
     if use_characterizations:
         logger.info("Input characterizations: %s", automaton.characterization_by_state())
-    logger.debug("Provided preconditions of actions: %s", automaton.actions_single_vocab_precond)
+    logger.info("Provided preconditions of actions: %s", automaton.actions_single_vocab_precond)
     assert_precondition_hints_soundness(automaton.actions_single_vocab_precond)
 
 
