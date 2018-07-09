@@ -207,6 +207,7 @@ def to_term(s):
 def to_clause(s):
     return formula_to_clause(to_formula(s))
 
+# TODO: precedence of quantifiers and connectives not entirely intuitive to me
 def to_clauses(s):
     return formula_to_clauses(to_formula(s))
 
