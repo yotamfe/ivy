@@ -1195,7 +1195,8 @@ def numeral_assign(clauses,h):
             numv = h.eval_constant(num)
 #            print "eval: {}:{} = {}".format(num,num.sort,numv)
             if numv in foom:
-                print "two numerals assigned same value!: {} = {}".format(num,foom[numv])
+                pass
+                # print "two numerals assigned same value!: {} = {}".format(num,foom[numv])
             else:
 #                print "assigning {} to {}".format(num,numv)
                 foom[numv] = num
