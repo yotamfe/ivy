@@ -313,6 +313,7 @@ class SummaryPostSummaryClause(ivy_linear_pdr.LinearMiddleConstraint):
             return None
 
         prestate = countertransition[0]
+        # TODO: bug - may not contain all the necessary vocabulary, some ignored translating from a Z3 model
         return ivy_infer.PdrCexModel(None, prestate.clauses)
 
     def generalize_intransformability(self, prestate_summaries, lemma):
