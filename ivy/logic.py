@@ -104,6 +104,9 @@ def is_polymorphic(x):
         any(is_polymorphic(y) for y in x)
     )
 
+import ivy_utils as iu
+
+var_rename_param = iu.BooleanParameter('rename-variables-with-sorts', False)
 
 # Terms
 class Var(recstruct('Var', ['name', 'sort'], [])):
@@ -114,8 +117,10 @@ class Var(recstruct('Var', ['name', 'sort'], [])):
         #     name, _ = decompose_var_name(name)
         if name and not name[0].isupper():
             raise IvyError("Bad variable name: {!r}".format(name))
-        # return name + "_" + str(sort), sort
-        return name, sort
+        if not var_rename_param.get():
+            return name, sort
+        else:
+            return name + "_" + str(sort), sort
     rep = property(lambda self: self.name)
     # def base_name(self):
     #     base_name, sort_in_name = decompose_var_name(self.name)
