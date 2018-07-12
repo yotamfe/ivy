@@ -565,11 +565,12 @@ def infer_automaton(automaton, end, mid, output_filename):
     end = sort_safety_constraints_by_heuristic_precedence(automaton.init, mid, end)
 
     start_time = datetime.datetime.now()
-    logger.info("Starting inference. Time: %s", start_time)
 
     pdr_elements_global_invariant = ivy_linear_pdr.LinearPdr(automaton.states, automaton.init, mid, end,
                                                              ivy_infer_universal.UnivGeneralizer(),
                                                              ivy_all_axioms())
+
+    logger.info("Starting inference. Time: %s", start_time)
     is_safe, frame_or_cex = ivy_infer.pdr(pdr_elements_global_invariant)
     if not is_safe:
         print "Possibly not safe! - bug or no universal invariant"
